@@ -1,7 +1,7 @@
 #include "ui.h"
 #include <ncurses.h>
-/* BUTTON5 (scroll abajo) no esta en el ncurses del sistema macOS.
-   macOS usa grupos de 6 bits por boton, no 5 como el estandar. */
+/* BUTTON5 (scroll down) is not in the system ncurses on macOS.
+   macOS uses 6-bit groups per button, not 5 as in the standard. */
 #ifndef BUTTON5_PRESSED
 #  define BUTTON5_PRESSED ((mmask_t)(BUTTON4_PRESSED << 6))
 #endif
@@ -17,11 +17,11 @@
 #define COLOR_SEL     3
 #define COLOR_NORMAL  4
 
-#define AUTOSAVE_MS   2000  /* debounce de guardado automatico (ms) */
-#define SCROLL_LINES  3     /* lineas por evento de scroll de raton */
+#define AUTOSAVE_MS   2000  /* autosave debounce (ms) */
+#define SCROLL_LINES  3     /* lines per mouse scroll event */
 
 /* ------------------------------------------------------------------ */
-/* Helpers generales                                                    */
+/* General helpers                                                      */
 /* ------------------------------------------------------------------ */
 
 static void draw_hline(int row, int cols) {
@@ -53,9 +53,9 @@ static char *format_ts(time_t ts) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Posicion visual en el buffer de texto                                */
+/* Visual position in the text buffer                                   */
 /*                                                                      */
-/* Regla: wrap cuando vcol >= cols-1. '\n' avanza a (vrow+1, 0).      */
+/* Rule: wrap when vcol >= cols-1. '\n' advances to (vrow+1, 0).      */
 /* ------------------------------------------------------------------ */
 
 static void get_vpos(const char *buf, size_t buf_len, size_t cursor,
@@ -68,8 +68,8 @@ static void get_vpos(const char *buf, size_t buf_len, size_t cursor,
     *vr = r; *vc = c;
 }
 
-/* Devuelve el indice en buf para la posicion visual (tvr, tvc).
-   Si la fila es mas corta que tvc devuelve el ultimo indice de esa fila. */
+/* Returns the buffer index for visual position (tvr, tvc).
+   If the row is shorter than tvc, returns the last index of that row. */
 static size_t vpos_to_idx(const char *buf, size_t buf_len,
                             int cols, int tvr, int tvc) {
     int r = 0, c = 0;
@@ -87,7 +87,7 @@ static size_t vpos_to_idx(const char *buf, size_t buf_len,
 }
 
 /* ------------------------------------------------------------------ */
-/* Backup temporal en disco                                             */
+/* Temporary on-disk backup                                             */
 /* ------------------------------------------------------------------ */
 
 static void backup_path(int entry_id, char *out, size_t sz) {
@@ -111,7 +111,7 @@ static void backup_remove(int entry_id) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Pantalla: visor de entrada                                           */
+/* Screen: entry viewer                                                 */
 /* ------------------------------------------------------------------ */
 
 static void screen_view(diary_entry_t *e) {
@@ -122,12 +122,11 @@ static void screen_view(diary_entry_t *e) {
     keypad(win, TRUE);
 
     char title[80];
-    snprintf(title, sizeof(title), " Entrada #%d - %s ", e->id, format_ts(e->timestamp));
+    snprintf(title, sizeof(title), " Entry #%d - %s ", e->id, format_ts(e->timestamp));
 
     const char *text = e->text ? e->text : "";
     size_t tlen = strlen(text);
 
-    /* Total de filas visuales */
     int total_vrows = 1, vcol = 0;
     for (size_t i = 0; i < tlen; i++) {
         if (text[i] == '\n' || vcol >= cols - 1) { total_vrows++; vcol = 0; if (text[i] == '\n') continue; }
@@ -159,7 +158,7 @@ static void screen_view(diary_entry_t *e) {
         wattron(win, COLOR_PAIR(COLOR_STATUS));
         mvwhline(win, rows - 1, 0, ' ', cols);
         mvwprintw(win, rows - 1, 1,
-                  "[j/k o scroll] desplazar  [Q/ESC] volver  (%d-%d / %d)",
+                  "[j/k or scroll] navigate  [Q/ESC] back  (%d-%d / %d)",
                   view_top + 1,
                   (view_top + text_rows < total_vrows) ? view_top + text_rows : total_vrows,
                   total_vrows);
@@ -187,26 +186,25 @@ static void screen_view(diary_entry_t *e) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Pantalla: editor                                                     */
+/* Screen: editor                                                       */
 /*                                                                      */
-/* entry_id = 0  -> nueva entrada (POST)                               */
-/* entry_id > 0  -> editar existente (UPDATE)                          */
-/* initial_text  -> NULL para nueva, texto actual para editar          */
+/* entry_id = 0  -> new entry (POST)                                   */
+/* entry_id > 0  -> edit existing (UPDATE)                             */
+/* initial_text  -> NULL for new, current text for edit                */
 /*                                                                      */
-/* Ctrl+S / F2   -> guardar sin salir (autosave cada AUTOSAVE_MS ms)  */
-/* ESC           -> salir                                               */
+/* Ctrl+S / F2   -> save without exiting (autosave every AUTOSAVE_MS) */
+/* ESC           -> exit                                                */
 /* ------------------------------------------------------------------ */
 
 static void screen_editor(diary_conn_t *conn, int entry_id,
                             const char *initial_text, time_t timestamp) {
-    /* Desactivar IXON para que Ctrl+S llegue a la app */
+    /* Disable IXON so Ctrl+S reaches the app */
     struct termios tios_orig, tios;
     tcgetattr(STDIN_FILENO, &tios_orig);
     tios = tios_orig;
     tios.c_iflag &= ~(tcflag_t)IXON;
     tcsetattr(STDIN_FILENO, TCSANOW, &tios);
 
-    /* Buffer de texto */
     size_t buf_sz = 4096;
     char  *buf    = calloc(1, buf_sz);
     size_t buf_len = 0;
@@ -224,11 +222,11 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
     WINDOW *win = newwin(rows, cols, 0, 0);
     keypad(win, TRUE);
 
-    /* timeout de autosave: wgetch devuelve ERR si no hay input en AUTOSAVE_MS */
+    /* Autosave timeout: wgetch returns ERR if no input within AUTOSAVE_MS */
     wtimeout(win, AUTOSAVE_MS);
 
     int   view_top  = 0;
-    int   dirty     = 0;         /* modificado desde ultimo guardado */
+    int   dirty     = 0;
     char  status_msg[128] = "";
 
     while (1) {
@@ -238,27 +236,24 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
         int cur_vrow, cur_vcol;
         get_vpos(buf, buf_len, cursor, cols, &cur_vrow, &cur_vcol);
 
-        /* Ajustar scroll para mantener cursor visible */
         if (cur_vrow < view_top) view_top = cur_vrow;
         if (cur_vrow >= view_top + text_rows) view_top = cur_vrow - text_rows + 1;
         if (view_top < 0) view_top = 0;
 
-        /* Header: numero de entrada + fecha, sin comandos */
         wattron(win, COLOR_PAIR(COLOR_HEADER) | A_BOLD);
         mvwhline(win, 0, 0, ' ', cols);
         {
             char hdr[128];
             if (entry_id > 0)
-                snprintf(hdr, sizeof(hdr), " Entrada #%d - %s%s ",
+                snprintf(hdr, sizeof(hdr), " Entry #%d - %s%s ",
                          entry_id, format_ts(timestamp), dirty ? " *" : "");
             else
-                snprintf(hdr, sizeof(hdr), " Nueva entrada - %s%s ",
+                snprintf(hdr, sizeof(hdr), " New entry - %s%s ",
                          format_ts(timestamp), dirty ? " *" : "");
             mvwprintw(win, 0, 1, "%s", hdr);
         }
         wattroff(win, COLOR_PAIR(COLOR_HEADER) | A_BOLD);
 
-        /* Limpiar y renderizar texto */
         for (int r = 1; r < rows - 1; r++) { wmove(win, r, 0); wclrtoeol(win); }
 
         int vrow = 0, vcol = 0;
@@ -270,15 +265,14 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
             vcol++;
         }
 
-        /* Status bar: comandos siempre visibles, mensaje de estado a la izquierda */
         wattron(win, COLOR_PAIR(COLOR_STATUS));
         mvwhline(win, rows - 1, 0, ' ', cols);
         {
             char bar[256];
             if (status_msg[0])
-                snprintf(bar, sizeof(bar), "%s  |  [Ctrl+S/F2] guardar  [ESC] salir", status_msg);
+                snprintf(bar, sizeof(bar), "%s  |  [Ctrl+S/F2] save  [ESC] exit", status_msg);
             else
-                snprintf(bar, sizeof(bar), "[Ctrl+S/F2] guardar  [ESC] salir");
+                snprintf(bar, sizeof(bar), "[Ctrl+S/F2] save  [ESC] exit");
             mvwprintw(win, rows - 1, 1, "%s", bar);
         }
         wattroff(win, COLOR_PAIR(COLOR_STATUS));
@@ -289,22 +283,20 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
 
         int ch = wgetch(win);
 
-        /* ---- Timeout de autosave ---- */
+        /* ---- Autosave timeout ---- */
         if (ch == ERR) {
             if (!dirty) continue;
-            /* caer en la logica de guardado */
-            ch = 19; /* simular Ctrl+S */
+            ch = 19; /* simulate Ctrl+S */
         }
 
-        /* ---- Guardar sin salir ---- */
+        /* ---- Save without exiting ---- */
         if (ch == 19 || ch == KEY_F(2) || ch == 23) { /* Ctrl+S, F2, Ctrl+W */
             if (!dirty && entry_id > 0) {
-                snprintf(status_msg, sizeof(status_msg), "Sin cambios.");
+                snprintf(status_msg, sizeof(status_msg), "No changes.");
                 continue;
             }
             buf[buf_len] = '\0';
 
-            /* Backup antes de enviar */
             backup_write(entry_id > 0 ? entry_id : 0, buf, buf_len);
 
             int new_id;
@@ -317,27 +309,26 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
                 backup_remove(entry_id > 0 ? entry_id : 0);
                 if (entry_id <= 0) entry_id = new_id;
                 dirty = 0;
-                snprintf(status_msg, sizeof(status_msg), "Guardado.");
+                snprintf(status_msg, sizeof(status_msg), "Saved.");
             } else {
                 snprintf(status_msg, sizeof(status_msg),
-                         "Error al guardar. Backup: %s",
+                         "Save failed. Backup: %s",
                          entry_id > 0 ? "diary_X.tmp" : "diary_new.tmp");
             }
 
-        /* ---- Salir ---- */
+        /* ---- Exit ---- */
         } else if (ch == 27) {
             if (dirty) {
-                /* Un solo ESC con cambios: avisar */
                 snprintf(status_msg, sizeof(status_msg),
-                         "Hay cambios sin guardar. ESC de nuevo para salir, Ctrl+S para guardar.");
-                dirty = -1; /* marca "confirmando salida" */
+                         "Unsaved changes. Press ESC again to discard, Ctrl+S to save.");
+                dirty = -1;
             } else if (dirty == -1) {
-                break;   /* segundo ESC: salir sin guardar */
+                break;
             } else {
                 break;
             }
 
-        /* ---- Navegacion ---- */
+        /* ---- Navigation ---- */
         } else if (ch == KEY_UP) {
             if (cur_vrow > 0) cursor = vpos_to_idx(buf, buf_len, cols, cur_vrow - 1, cur_vcol);
         } else if (ch == KEY_DOWN) {
@@ -347,7 +338,7 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
         else if   (ch == KEY_HOME) { cursor = vpos_to_idx(buf, buf_len, cols, cur_vrow, 0); }
         else if   (ch == KEY_END)  { cursor = vpos_to_idx(buf, buf_len, cols, cur_vrow, cols); }
 
-        /* ---- Scroll de raton (mueve vista, no cursor) ---- */
+        /* ---- Mouse scroll (moves view, not cursor) ---- */
         else if (ch == KEY_MOUSE) {
             MEVENT ev;
             if (getmouse(&ev) == OK) {
@@ -358,7 +349,7 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
                 }
             }
 
-        /* ---- Edicion ---- */
+        /* ---- Editing ---- */
         } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 8) {
             if (cursor > 0) {
                 memmove(buf + cursor - 1, buf + cursor, buf_len - cursor);
@@ -392,7 +383,7 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
 }
 
 /* ------------------------------------------------------------------ */
-/* Pantalla principal                                                   */
+/* Main screen                                                          */
 /* ------------------------------------------------------------------ */
 
 static void reload_entries(diary_conn_t *conn,
@@ -401,7 +392,7 @@ static void reload_entries(diary_conn_t *conn,
     for (int i = 0; i < *count; i++) free((*entries)[i].text);
     free(*entries); *entries = NULL; *count = 0;
     if (net_get_entries(conn, entries, count) != 0) {
-        strncpy(smsg, "Error al obtener entradas.", ssz - 1);
+        strncpy(smsg, "Error fetching entries.", ssz - 1);
         *count = 0;
     }
 }
@@ -411,7 +402,7 @@ static void screen_list(diary_conn_t *conn) {
     diary_entry_t *entries = NULL;
     int count = 0, selected = 0, scroll = 0;
     char status_msg[128] = "";
-    int  confirm_delete  = 0;  /* id que espera confirmacion, 0 = ninguno */
+    int  confirm_delete  = 0;
 
     reload_entries(conn, &entries, &count, status_msg, sizeof(status_msg));
 
@@ -421,12 +412,12 @@ static void screen_list(diary_conn_t *conn) {
         confirm_delete = 0;
 
         clear();
-        draw_header(cols, " DIARIO ");
+        draw_header(cols, " DIARY ");
         draw_hline(1, cols);
 
         if (count == 0) {
             attron(A_DIM);
-            mvprintw(rows / 2, (cols - 28) / 2, "No hay entradas. [N] para crear una.");
+            mvprintw(rows / 2, (cols - 30) / 2, "No entries yet. Press [N] to create one.");
             attroff(A_DIM);
         }
 
@@ -457,7 +448,7 @@ static void screen_list(diary_conn_t *conn) {
         draw_hline(rows - 2, cols);
         draw_status(rows, cols,
             status_msg[0] ? status_msg
-                          : "[N]ueva  [E]ditar  [Enter]Leer  [D]eliminar  [R]ecargar  [Q]salir");
+                          : "[N]ew  [E]dit  [Enter]Read  [D]elete  [R]eload  [Q]uit");
         status_msg[0] = '\0';
         refresh();
 
@@ -489,17 +480,16 @@ static void screen_list(diary_conn_t *conn) {
             }
         } else if (ch == 'd' || ch == 'D') {
             if (count > 0) {
-                /* Pedir confirmacion en la barra de estado */
                 int del_id = entries[selected].id;
                 draw_status(rows, cols,
-                    "Confirmar eliminar: [S] si  [N/ESC] cancelar");
+                    "Confirm delete: [Y]es  [N/ESC] cancel");
                 refresh();
                 int conf = getch();
-                if (conf == 's' || conf == 'S') {
+                if (conf == 'y' || conf == 'Y') {
                     if (net_delete_entry(conn, del_id) == 0) {
-                        strncpy(status_msg, "Entrada eliminada.", sizeof(status_msg) - 1);
+                        strncpy(status_msg, "Entry deleted.", sizeof(status_msg) - 1);
                     } else {
-                        strncpy(status_msg, "Error al eliminar.", sizeof(status_msg) - 1);
+                        strncpy(status_msg, "Error deleting entry.", sizeof(status_msg) - 1);
                     }
                     reload_entries(conn, &entries, &count, status_msg[0] ? status_msg : status_msg, sizeof(status_msg));
                     if (selected >= count) selected = count > 0 ? count - 1 : 0;
@@ -508,7 +498,7 @@ static void screen_list(diary_conn_t *conn) {
         } else if (ch == 'r' || ch == 'R') {
             reload_entries(conn, &entries, &count, status_msg, sizeof(status_msg));
             if (selected >= count) selected = count > 0 ? count - 1 : 0;
-            if (!status_msg[0]) strncpy(status_msg, "Recargado.", sizeof(status_msg) - 1);
+            if (!status_msg[0]) strncpy(status_msg, "Reloaded.", sizeof(status_msg) - 1);
         }
         (void)confirm_delete;
     }
@@ -518,22 +508,22 @@ static void screen_list(diary_conn_t *conn) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Punto de entrada                                                     */
+/* Entry point                                                          */
 /* ------------------------------------------------------------------ */
 
 void ui_run(diary_conn_t *conn) {
     initscr();
-    set_escdelay(25);  /* evitar el retraso de 1s al presionar ESC */
+    set_escdelay(25);
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
     curs_set(1);
 
-    /* Mouse: incluir explicitamente BUTTON5 para el scroll abajo */
+    /* Include BUTTON5 explicitly for scroll-down support */
     mmask_t mouse_mask = ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION
                        | (mmask_t)BUTTON5_PRESSED;
     mousemask(mouse_mask, NULL);
-    mouseinterval(0);  /* sin delay de click — eventos inmediatos */
+    mouseinterval(0);
 
     if (has_colors()) {
         start_color();

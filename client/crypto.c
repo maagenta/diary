@@ -3,23 +3,22 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Lee la primera linea de un archivo y la decodifica de base64 */
+/* Read the first line of a file and decode it from base64 */
 static int read_b64_key(const char *path,
                           unsigned char *out, size_t expected_len) {
     FILE *f = fopen(path, "r");
     if (!f) {
-        fprintf(stderr, "Error: no se pudo abrir %s\n", path);
+        fprintf(stderr, "Error: could not open %s\n", path);
         return -1;
     }
     char line[512];
     if (!fgets(line, sizeof(line), f)) {
         fclose(f);
-        fprintf(stderr, "Error: archivo vacio %s\n", path);
+        fprintf(stderr, "Error: empty file %s\n", path);
         return -1;
     }
     fclose(f);
 
-    /* Quitar salto de linea */
     size_t l = strlen(line);
     while (l > 0 && (line[l-1] == '\n' || line[l-1] == '\r'))
         line[--l] = '\0';
@@ -29,7 +28,7 @@ static int read_b64_key(const char *path,
                            NULL, &bin_len, NULL,
                            sodium_base64_VARIANT_ORIGINAL) != 0
         || bin_len != expected_len) {
-        fprintf(stderr, "Error: clave en %s tiene formato invalido\n", path);
+        fprintf(stderr, "Error: invalid key format in %s\n", path);
         return -1;
     }
     return 0;
@@ -38,19 +37,19 @@ static int read_b64_key(const char *path,
 int crypto_load_keys(const char *auth_sk_path,
                       const char *enc_sk_path,
                       diary_keys_t *out) {
-    /* Cargar clave privada de autenticacion Ed25519 (64 bytes) */
+    /* Load Ed25519 authentication private key (64 bytes) */
     if (read_b64_key(auth_sk_path, out->auth_sk, AUTH_SK_LEN) != 0)
         return -1;
 
-    /* Derivar clave publica de autenticacion desde los ultimos 32 bytes de sk */
-    /* En libsodium, auth_sk = seed(32) || pubkey(32) */
+    /* Derive authentication public key from the last 32 bytes of sk */
+    /* In libsodium, auth_sk = seed(32) || pubkey(32) */
     memcpy(out->auth_pk, out->auth_sk + 32, AUTH_PK_LEN);
 
-    /* Cargar clave privada de cifrado X25519 (32 bytes) */
+    /* Load X25519 encryption private key (32 bytes) */
     if (read_b64_key(enc_sk_path, out->enc_sk, ENC_SK_LEN) != 0)
         return -1;
 
-    /* Derivar clave publica X25519 */
+    /* Derive X25519 public key */
     crypto_scalarmult_base(out->enc_pk, out->enc_sk);
 
     return 0;
@@ -80,7 +79,7 @@ int crypto_unseal(const char *data_b64,
                    const unsigned char *enc_sk,
                    unsigned char *out, size_t out_sz) {
     size_t b64_len = strlen(data_b64);
-    size_t max_cipher = b64_len; /* base64 decode nunca es mayor */
+    size_t max_cipher = b64_len;
     unsigned char *cipher = malloc(max_cipher);
     if (!cipher) return -1;
 

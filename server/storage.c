@@ -7,7 +7,7 @@
 static sqlite3 *db = NULL;
 
 /* ------------------------------------------------------------------ */
-/* Ciclo de vida                                                        */
+/* Lifecycle                                                            */
 /* ------------------------------------------------------------------ */
 
 int storage_init(const char *db_path) {
@@ -16,7 +16,7 @@ int storage_init(const char *db_path) {
         return -1;
     }
 
-    /* WAL permite lecturas y escrituras concurrentes sin bloqueo total */
+    /* WAL allows concurrent reads and writes without full locking */
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
     sqlite3_exec(db, "PRAGMA foreign_keys=ON;",  NULL, NULL, NULL);
 
@@ -48,7 +48,7 @@ void storage_close(void) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Usuarios                                                             */
+/* Users                                                                */
 /* ------------------------------------------------------------------ */
 
 int storage_user_exists(const char *auth_pubkey_hex) {
@@ -88,7 +88,7 @@ char *storage_get_encrypt_pubkey(const char *auth_pubkey_hex) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Entradas                                                             */
+/* Entries                                                              */
 /* ------------------------------------------------------------------ */
 
 int storage_add_entry(const char *auth_pubkey_hex,

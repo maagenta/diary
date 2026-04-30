@@ -9,19 +9,19 @@
 
 static void usage(const char *prog) {
     fprintf(stderr,
-        "Uso: %s [opciones]\n"
+        "Usage: %s [options]\n"
         "\n"
-        "Opciones:\n"
-        "  -h HOST        Servidor (default: 127.0.0.1)\n"
-        "  -p PORT        Puerto   (default: %d)\n"
-        "  -a AUTH_SK     Clave privada de autenticacion (default: auth.key)\n"
-        "  -e ENC_SK      Clave privada de cifrado       (default: enc.key)\n",
+        "Options:\n"
+        "  -h HOST        Server address (default: 127.0.0.1)\n"
+        "  -p PORT        Port           (default: %d)\n"
+        "  -a AUTH_SK     Authentication private key (default: auth.key)\n"
+        "  -e ENC_SK      Encryption private key     (default: enc.key)\n",
         prog, DIARY_PORT);
 }
 
 int main(int argc, char *argv[]) {
     if (sodium_init() < 0) {
-        fprintf(stderr, "Error: no se pudo inicializar libsodium\n");
+        fprintf(stderr, "Error: could not initialize libsodium\n");
         return 1;
     }
 
@@ -47,26 +47,22 @@ int main(int argc, char *argv[]) {
     memset(&conn, 0, sizeof(conn));
     conn.fd = -1;
 
-    /* Cargar claves */
     if (crypto_load_keys(auth_sk, enc_sk, &conn.keys) != 0) {
         fprintf(stderr,
-            "Error al cargar claves.\n"
-            "Genera un par de claves con: ./keygen\n");
+            "Error loading keys.\n"
+            "Generate a key pair with: ./keygen\n");
         return 1;
     }
 
-    /* Conectar */
-    fprintf(stderr, "Conectando a %s:%d...\n", host, port);
+    fprintf(stderr, "Connecting to %s:%d...\n", host, port);
     if (net_connect(&conn, host, port) != 0) {
-        fprintf(stderr, "Error: no se pudo conectar o autenticar\n");
+        fprintf(stderr, "Error: could not connect or authenticate\n");
         return 1;
     }
-    fprintf(stderr, "Conectado.\n");
+    fprintf(stderr, "Connected.\n");
 
-    /* Lanzar UI */
     ui_run(&conn);
 
-    /* Desconectar */
     net_disconnect(&conn);
     return 0;
 }

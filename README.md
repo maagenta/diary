@@ -1,47 +1,47 @@
 # Diary
 
-Aplicación de diario personal con cifrado end-to-end, accesible a través de red. Arquitectura cliente-servidor en C.
+Personal diary application with end-to-end encryption, accessible over the network. Client-server architecture written in C.
 
-## Arquitectura
+## Architecture
 
-- **Servidor**: TCP socket en C. Almacena entradas en una base de datos SQLite, cifradas con la clave pública del usuario. Nunca tiene acceso a las claves privadas.
-- **Cliente**: TUI en ncurses. Lee la clave privada de un archivo local para descifrar las entradas.
+- **Server**: TCP socket in C. Stores entries in a SQLite database, encrypted with the user's public key. Never has access to private keys.
+- **Client**: TUI in ncurses. Reads the private key from a local file to decrypt entries.
 
-## Cifrado
+## Encryption
 
-| Propósito | Algoritmo | Archivos |
-|-----------|-----------|---------|
-| Autenticación | Ed25519 (firma de challenge) | `auth.key`, `auth.pub` |
-| Cifrado de entradas | X25519 + XSalsa20-Poly1305 (`crypto_box_seal`) | `enc.key`, `enc.pub` |
+| Purpose | Algorithm | Files |
+|---------|-----------|-------|
+| Authentication | Ed25519 (challenge signing) | `auth.key`, `auth.pub` |
+| Entry encryption | X25519 + XSalsa20-Poly1305 (`crypto_box_seal`) | `enc.key`, `enc.pub` |
 
-El servidor almacena las entradas cifradas con la clave pública de cifrado del usuario. Solo el cliente con la clave privada puede descifrarlas.
+The server stores entries encrypted with the user's public encryption key. Only the client with the private key can decrypt them.
 
-## Protocolo
+## Protocol
 
 ```
 C→S: HELLO
 S→C: CHALLENGE <base64>
-C→S: AUTH <auth_pubkey_b64> <firma_b64>
+C→S: AUTH <auth_pubkey_b64> <signature_b64>
 S→C: OK  |  REGISTER
 
-# Si es usuario nuevo (REGISTER):
+# New user (REGISTER):
 C→S: REGISTER <enc_pubkey_b64>
 S→C: OK
 
-# Nueva entrada:
-C→S: POST <entrada_cifrada_b64>
+# New entry:
+C→S: POST <encrypted_entry_b64>
 S→C: OK <id>  |  FAIL
 
-# Obtener entradas:
+# Get entries:
 C→S: GET
 S→C: ENTRIES <n>
-     <id> <timestamp> <entrada_cifrada_b64>  (× n)
+     <id> <timestamp> <encrypted_entry_b64>  (× n)
 
-# Editar entrada:
-C→S: UPDATE <id> <entrada_cifrada_b64>
+# Edit entry:
+C→S: UPDATE <id> <encrypted_entry_b64>
 S→C: OK  |  FAIL
 
-# Eliminar entrada:
+# Delete entry:
 C→S: DELETE <id>
 S→C: OK  |  FAIL
 
@@ -49,114 +49,114 @@ C→S: QUIT
 S→C: BYE
 ```
 
-Puerto por defecto: **4242**
+Default port: **4242**
 
-## Dependencias
+## Dependencies
 
 ```bash
 # macOS
 brew install libsodium sqlite ncurses
 ```
 
-| Librería | Usada por |
-|----------|-----------|
-| libsodium | keygen, servidor, cliente |
-| sqlite3 | servidor |
-| ncurses | cliente |
+| Library | Used by |
+|---------|---------|
+| libsodium | keygen, server, client |
+| sqlite3 | server |
+| ncurses | client |
 
-## Compilar
-
-```bash
-make           # compila todo en build/
-make server    # compila keygen + servidor
-make client    # compila keygen + cliente
-make clean     # elimina binarios
-```
-
-Los binarios quedan en `build/`:
-- `build/keygen`        — generador de claves
-- `build/diary-server`  — servidor
-- `build/diary-client`  — cliente TUI
-
-## Uso
-
-### 1. Generar claves (una vez por usuario)
+## Build
 
 ```bash
-cd ~/mis-claves
-/ruta/a/build/keygen
+make           # build everything into build/
+make server    # build keygen + server
+make client    # build keygen + client
+make clean     # remove binaries
 ```
 
-Genera:
-- `auth.key` — clave privada de autenticación **(mantener secreta)**
-- `auth.pub` — clave pública de autenticación
-- `enc.key`  — clave privada de cifrado **(mantener secreta)**
-- `enc.pub`  — clave pública de cifrado
+Binaries are placed in `build/`:
+- `build/keygen`        — key pair generator
+- `build/diary-server`  — server
+- `build/diary-client`  — client TUI
 
-### 2. Iniciar el servidor
+## Usage
+
+### 1. Generate keys (once per user)
+
+```bash
+cd ~/my-keys
+/path/to/build/keygen
+```
+
+Generates:
+- `auth.key` — authentication private key **(keep secret)**
+- `auth.pub` — authentication public key
+- `enc.key`  — encryption private key **(keep secret)**
+- `enc.pub`  — encryption public key
+
+### 2. Start the server
 
 ```bash
 build/diary-server -k auth.pub -db diary.db
-build/diary-server -p 8080 -k auth.pub -db /ruta/a/diary.db
+build/diary-server -p 8080 -k auth.pub -db /path/to/diary.db
 ```
 
-**Opciones del servidor:**
+**Server options:**
 
-| Opción | Descripción | Default |
+| Option | Description | Default |
 |--------|-------------|---------|
-| `-p PORT` | Puerto | `4242` |
-| `-k FILE` | Clave pública de autenticación autorizada | obligatorio |
-| `-db FILE` | Ruta a la base de datos SQLite | obligatorio |
+| `-p PORT` | Port | `4242` |
+| `-k FILE` | Authorized authentication public key | required |
+| `-db FILE` | Path to SQLite database | required |
 
-### 3. Conectar el cliente
+### 3. Connect the client
 
 ```bash
 build/diary-client -a auth.key -e enc.key
 build/diary-client -h 192.168.1.10 -p 8080 -a auth.key -e enc.key
 ```
 
-**Opciones del cliente:**
+**Client options:**
 
-| Opción | Descripción | Default |
+| Option | Description | Default |
 |--------|-------------|---------|
-| `-h HOST` | Dirección del servidor | `127.0.0.1` |
-| `-p PORT` | Puerto | `4242` |
-| `-a AUTH_SK` | Ruta a clave privada de auth | `auth.key` |
-| `-e ENC_SK` | Ruta a clave privada de cifrado | `enc.key` |
+| `-h HOST` | Server address | `127.0.0.1` |
+| `-p PORT` | Port | `4242` |
+| `-a AUTH_SK` | Path to auth private key | `auth.key` |
+| `-e ENC_SK` | Path to encryption private key | `enc.key` |
 
-### 4. Teclas en el cliente
+### 4. Client key bindings
 
-| Tecla | Acción |
-|-------|--------|
-| `N` | Nueva entrada |
-| `Enter` | Leer entrada seleccionada |
-| `E` | Editar entrada seleccionada |
-| `D` | Eliminar entrada seleccionada |
-| `↑` / `↓` | Navegar lista |
-| `R` | Recargar entradas |
-| `Q` | Salir |
-| `Ctrl+S` / `F2` | Guardar entrada (en editor) |
-| `ESC` | Cancelar / salir |
+| Key | Action |
+|-----|--------|
+| `N` | New entry |
+| `Enter` | Read selected entry |
+| `E` | Edit selected entry |
+| `D` | Delete selected entry |
+| `↑` / `↓` | Navigate list |
+| `R` | Reload entries |
+| `Q` | Quit |
+| `Ctrl+S` / `F2` | Save entry (in editor) |
+| `ESC` | Cancel / exit |
 
-## Estructura del proyecto
+## Project structure
 
 ```
 diary/
 ├── common/
-│   └── protocol.h          — constantes y protocolo compartido
+│   └── protocol.h          — shared constants and protocol definition
 ├── server/
-│   ├── main.c              — loop TCP, fork por cliente
-│   ├── client_handler.c    — sesión: auth + comandos
-│   ├── storage.c/h         — persistencia SQLite (WAL mode)
+│   ├── main.c              — TCP loop, fork per client
+│   ├── client_handler.c    — session: auth + command dispatch
+│   ├── storage.c/h         — SQLite persistence (WAL mode)
 │   └── Makefile
 ├── client/
-│   ├── main.c              — punto de entrada, opciones CLI
-│   ├── crypto.c/h          — carga de claves, cifrado/descifrado
-│   ├── net.c/h             — protocolo de red
-│   ├── ui.c/h              — interfaz ncurses
+│   ├── main.c              — entry point, CLI options
+│   ├── crypto.c/h          — key loading, encryption/decryption
+│   ├── net.c/h             — network layer
+│   ├── ui.c/h              — ncurses interface
 │   └── Makefile
 ├── keygen/
-│   ├── keygen.c            — generador de pares de claves
+│   ├── keygen.c            — key pair generator
 │   └── Makefile
 ├── Makefile
 └── README.md

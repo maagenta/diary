@@ -22,7 +22,7 @@ static void reap_children(int sig) {
     while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
-/* Crea directorios recursivamente (equivalente a mkdir -p) */
+/* Recursively create directories (equivalent to mkdir -p) */
 static int mkdirs(const char *path) {
     char tmp[PATH_MAX];
     snprintf(tmp, sizeof(tmp), "%s", path);
@@ -40,18 +40,18 @@ static int mkdirs(const char *path) {
     return 0;
 }
 
-/* Lee clave publica Ed25519 (base64) y devuelve su representacion hex */
+/* Read an Ed25519 public key (base64) and return its hex representation */
 static int load_pubkey_hex(const char *path,
                              char *hex_out, size_t hex_sz) {
     FILE *f = fopen(path, "r");
     if (!f) {
-        fprintf(stderr, "Error: no se pudo abrir %s: %s\n", path, strerror(errno));
+        fprintf(stderr, "Error: could not open %s: %s\n", path, strerror(errno));
         return -1;
     }
     char b64[512];
     if (!fgets(b64, sizeof(b64), f)) {
         fclose(f);
-        fprintf(stderr, "Error: archivo de clave vacio: %s\n", path);
+        fprintf(stderr, "Error: empty key file: %s\n", path);
         return -1;
     }
     fclose(f);
@@ -66,37 +66,36 @@ static int load_pubkey_hex(const char *path,
                            NULL, &pk_len, NULL,
                            sodium_base64_VARIANT_ORIGINAL) != 0
         || pk_len != AUTH_PK_LEN) {
-        fprintf(stderr, "Error: clave publica invalida en %s\n", path);
+        fprintf(stderr, "Error: invalid public key in %s\n", path);
         return -1;
     }
     sodium_bin2hex(hex_out, hex_sz, pk, AUTH_PK_LEN);
     return 0;
 }
 
-/* Comprueba o crea el directorio que contiene db_path */
+/* Ensure the directory containing db_path exists */
 static int ensure_db_dir(const char *db_path) {
     char tmp[PATH_MAX];
     snprintf(tmp, sizeof(tmp), "%s", db_path);
     char *dir = dirname(tmp);
 
-    if (strcmp(dir, ".") == 0) return 0;  /* ruta relativa sin directorio */
+    if (strcmp(dir, ".") == 0) return 0;
 
     struct stat st;
     if (stat(dir, &st) != 0) {
-        /* No existe: intentar crear */
         if (mkdirs(dir) != 0) {
             if (errno == EACCES || errno == EPERM)
-                fprintf(stderr, "Error: sin permisos para crear el directorio %s\n", dir);
+                fprintf(stderr, "Error: permission denied creating directory %s\n", dir);
             else
-                fprintf(stderr, "Error: no se pudo crear el directorio %s: %s\n",
+                fprintf(stderr, "Error: could not create directory %s: %s\n",
                         dir, strerror(errno));
             return -1;
         }
     } else if (!S_ISDIR(st.st_mode)) {
-        fprintf(stderr, "Error: %s existe pero no es un directorio\n", dir);
+        fprintf(stderr, "Error: %s exists but is not a directory\n", dir);
         return -1;
     } else if (access(dir, W_OK) != 0) {
-        fprintf(stderr, "Error: sin permisos de escritura en %s\n", dir);
+        fprintf(stderr, "Error: no write permission on %s\n", dir);
         return -1;
     }
     return 0;
@@ -116,53 +115,49 @@ int main(int argc, char *argv[]) {
             db_path = argv[++i];
         } else {
             fprintf(stderr,
-                    "Uso: %s [-p puerto] -k pub-key-file -db database-file\n",
+                    "Usage: %s [-p port] -k pub-key-file -db database-file\n",
                     argv[0]);
             return 1;
         }
     }
 
     if (!pubkey_path) {
-        fprintf(stderr, "Error: -k pub-key-file es obligatorio\n");
-        fprintf(stderr, "Uso: %s [-p puerto] -k pub-key-file -db database-file\n",
+        fprintf(stderr, "Error: -k pub-key-file is required\n");
+        fprintf(stderr, "Usage: %s [-p port] -k pub-key-file -db database-file\n",
                 argv[0]);
         return 1;
     }
     if (!db_path) {
-        fprintf(stderr, "Error: -db database-file es obligatorio\n");
-        fprintf(stderr, "Uso: %s [-p puerto] -k pub-key-file -db database-file\n",
+        fprintf(stderr, "Error: -db database-file is required\n");
+        fprintf(stderr, "Usage: %s [-p port] -k pub-key-file -db database-file\n",
                 argv[0]);
         return 1;
     }
 
     if (sodium_init() < 0) {
-        fprintf(stderr, "Error: no se pudo inicializar libsodium\n");
+        fprintf(stderr, "Error: could not initialize libsodium\n");
         return 1;
     }
 
-    /* Cargar clave publica autorizada */
     char allowed_hex[AUTH_PK_LEN * 2 + 1];
     if (load_pubkey_hex(pubkey_path, allowed_hex, sizeof(allowed_hex)) != 0)
         return 1;
 
-    /* Crear directorio de la db si no existe */
     if (ensure_db_dir(db_path) != 0)
         return 1;
 
-    /* Abrir la db una vez para validar acceso y detectar si es nueva */
     int db_is_new = (access(db_path, F_OK) != 0);
     if (storage_init(db_path) != 0) {
-        fprintf(stderr, "Error: no se pudo abrir la base de datos %s\n", db_path);
+        fprintf(stderr, "Error: could not open database %s\n", db_path);
         return 1;
     }
     storage_close();
 
     if (db_is_new)
-        printf("DB exitosamente creada en %s\n", db_path);
+        printf("Database created at %s\n", db_path);
     else
-        printf("%s usada como DB\n", db_path);
+        printf("Using database %s\n", db_path);
 
-    /* Ignorar SIGPIPE y limpiar hijos zombies */
     signal(SIGPIPE, SIG_IGN);
     struct sigaction sa;
     sa.sa_handler = reap_children;
@@ -189,7 +184,7 @@ int main(int argc, char *argv[]) {
         perror("listen"); return 1;
     }
 
-    printf("Diary server escuchando en puerto %d\n", port);
+    printf("Diary server listening on port %d\n", port);
 
     while (1) {
         struct sockaddr_in cli_addr;
@@ -197,7 +192,7 @@ int main(int argc, char *argv[]) {
         int cli = accept(srv, (struct sockaddr *)&cli_addr, &cli_len);
         if (cli < 0) continue;
 
-        printf("Conexion de %s:%d\n",
+        printf("Connection from %s:%d\n",
                inet_ntoa(cli_addr.sin_addr),
                ntohs(cli_addr.sin_port));
 

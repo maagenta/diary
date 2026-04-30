@@ -33,7 +33,7 @@ static int recv_line(int fd, char *buf, size_t bufsz) {
     return (int)i;
 }
 
-/* Lee linea de tamano arbitrario (heap). Caller libera. */
+/* Read a line of arbitrary size (heap-allocated). Caller must free. */
 static char *recv_line_dyn(int fd) {
     size_t sz = 4096, i = 0;
     char *buf = malloc(sz);
@@ -56,7 +56,7 @@ static char *recv_line_dyn(int fd) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Autenticacion                                                        */
+/* Authentication                                                       */
 /* ------------------------------------------------------------------ */
 
 static char *do_auth(int fd, const char *allowed_hex) {
@@ -64,7 +64,7 @@ static char *do_auth(int fd, const char *allowed_hex) {
 
     if (recv_line(fd, line, sizeof(line)) < 0) return NULL;
     if (strcmp(line, "HELLO") != 0) {
-        send_line(fd, "FAIL esperaba HELLO"); return NULL;
+        send_line(fd, "FAIL expected HELLO"); return NULL;
     }
 
     unsigned char challenge[CHALLENGE_LEN];
@@ -81,14 +81,14 @@ static char *do_auth(int fd, const char *allowed_hex) {
 
     if (recv_line(fd, line, sizeof(line)) < 0) return NULL;
     if (strncmp(line, "AUTH ", 5) != 0) {
-        send_line(fd, "FAIL esperaba AUTH"); return NULL;
+        send_line(fd, "FAIL expected AUTH"); return NULL;
     }
 
     char *sv = NULL, *tmp = strdup(line + 5);
     char *pk_b64  = strtok_r(tmp, " ", &sv);
     char *sig_b64 = strtok_r(NULL, " ", &sv);
     if (!pk_b64 || !sig_b64) {
-        free(tmp); send_line(fd, "FAIL formato AUTH invalido"); return NULL;
+        free(tmp); send_line(fd, "FAIL invalid AUTH format"); return NULL;
     }
 
     unsigned char pk[AUTH_PK_LEN];
@@ -97,7 +97,7 @@ static char *do_auth(int fd, const char *allowed_hex) {
                            NULL, &pk_len, NULL,
                            sodium_base64_VARIANT_ORIGINAL) != 0
         || pk_len != AUTH_PK_LEN) {
-        free(tmp); send_line(fd, "FAIL clave publica invalida"); return NULL;
+        free(tmp); send_line(fd, "FAIL invalid public key"); return NULL;
     }
 
     unsigned char sig[AUTH_SIG_LEN];
@@ -106,27 +106,27 @@ static char *do_auth(int fd, const char *allowed_hex) {
                            NULL, &sig_len, NULL,
                            sodium_base64_VARIANT_ORIGINAL) != 0
         || sig_len != AUTH_SIG_LEN) {
-        free(tmp); send_line(fd, "FAIL firma invalida"); return NULL;
+        free(tmp); send_line(fd, "FAIL invalid signature"); return NULL;
     }
     free(tmp);
 
     if (crypto_sign_verify_detached(sig, challenge, CHALLENGE_LEN, pk) != 0) {
-        send_line(fd, "FAIL firma no verificada"); return NULL;
+        send_line(fd, "FAIL signature verification failed"); return NULL;
     }
 
     char *hex = malloc(AUTH_PK_LEN * 2 + 1);
-    if (!hex) { send_line(fd, "FAIL interno"); return NULL; }
+    if (!hex) { send_line(fd, "FAIL internal error"); return NULL; }
     sodium_bin2hex(hex, AUTH_PK_LEN * 2 + 1, pk, AUTH_PK_LEN);
 
     if (strcmp(hex, allowed_hex) != 0) {
-        send_line(fd, "FAIL acceso denegado");
+        send_line(fd, "FAIL access denied");
         free(hex); return NULL;
     }
     return hex;
 }
 
 /* ------------------------------------------------------------------ */
-/* GET: acumulador de entradas                                          */
+/* GET: entry accumulator                                               */
 /* ------------------------------------------------------------------ */
 
 #define MAX_ENTRIES 1024
@@ -144,7 +144,7 @@ static void collect_entry(int id, time_t ts, const char *data, void *ud) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Loop principal                                                       */
+/* Main loop                                                            */
 /* ------------------------------------------------------------------ */
 
 void handle_client(int fd, const char *db_path, const char *allowed_hex) {
@@ -154,14 +154,13 @@ void handle_client(int fd, const char *db_path, const char *allowed_hex) {
     char *user_hex = do_auth(fd, allowed_hex);
     if (!user_hex) { storage_close(); return; }
 
-    /* Post-auth: OK si usuario existe, REGISTER si es nuevo */
     if (!storage_user_exists(user_hex)) {
         send_line(fd, "REGISTER");
 
         char line[MAX_LINE];
         if (recv_line(fd, line, sizeof(line)) < 0) goto done;
         if (strncmp(line, "REGISTER ", 9) != 0) {
-            send_line(fd, "FAIL esperaba REGISTER <enc_pubkey_b64>"); goto done;
+            send_line(fd, "FAIL expected REGISTER <enc_pubkey_b64>"); goto done;
         }
 
         const char *epk_b64 = line + 9;
@@ -171,17 +170,16 @@ void handle_client(int fd, const char *db_path, const char *allowed_hex) {
                                NULL, &epk_len, NULL,
                                sodium_base64_VARIANT_ORIGINAL) != 0
             || epk_len != ENC_PK_LEN) {
-            send_line(fd, "FAIL clave de cifrado invalida"); goto done;
+            send_line(fd, "FAIL invalid encryption key"); goto done;
         }
         if (storage_register_user(user_hex, epk_b64) != 0) {
-            send_line(fd, "FAIL no se pudo registrar usuario"); goto done;
+            send_line(fd, "FAIL could not register user"); goto done;
         }
         send_line(fd, "OK");
     } else {
         send_line(fd, "OK");
     }
 
-    /* Loop de comandos */
     char *line;
     while ((line = recv_line_dyn(fd)) != NULL) {
         if (strcmp(line, "QUIT") == 0) {
@@ -190,7 +188,7 @@ void handle_client(int fd, const char *db_path, const char *allowed_hex) {
         } else if (strncmp(line, "POST ", 5) == 0) {
             int id = storage_add_entry(user_hex, line + 5, time(NULL));
             if (id < 0) {
-                send_line(fd, "FAIL no se pudo guardar");
+                send_line(fd, "FAIL could not save entry");
             } else {
                 char ok[32];
                 snprintf(ok, sizeof(ok), "OK %d", id);
@@ -199,7 +197,7 @@ void handle_client(int fd, const char *db_path, const char *allowed_hex) {
 
         } else if (strcmp(line, "GET") == 0) {
             entry_collect_t col = { 0, calloc(MAX_ENTRIES, sizeof(char *)) };
-            if (!col.lines) { send_line(fd, "FAIL memoria"); free(line); continue; }
+            if (!col.lines) { send_line(fd, "FAIL out of memory"); free(line); continue; }
             storage_get_entries(user_hex, collect_entry, &col);
             char hdr[32];
             snprintf(hdr, sizeof(hdr), "ENTRIES %d", col.count);
@@ -212,14 +210,14 @@ void handle_client(int fd, const char *db_path, const char *allowed_hex) {
         } else if (strncmp(line, "UPDATE ", 7) == 0) {
             char *sp = strchr(line + 7, ' ');
             if (!sp) {
-                send_line(fd, "FAIL formato UPDATE invalido");
+                send_line(fd, "FAIL invalid UPDATE format");
             } else {
                 *sp = '\0';
                 int uid = atoi(line + 7);
                 if (storage_update_entry(user_hex, uid, sp + 1) == 0)
                     send_line(fd, "OK");
                 else
-                    send_line(fd, "FAIL entrada no encontrada");
+                    send_line(fd, "FAIL entry not found");
             }
 
         } else if (strncmp(line, "DELETE ", 7) == 0) {
@@ -227,10 +225,10 @@ void handle_client(int fd, const char *db_path, const char *allowed_hex) {
             if (storage_delete_entry(user_hex, del_id) == 0)
                 send_line(fd, "OK");
             else
-                send_line(fd, "FAIL entrada no encontrada");
+                send_line(fd, "FAIL entry not found");
 
         } else {
-            send_line(fd, "FAIL comando desconocido");
+            send_line(fd, "FAIL unknown command");
         }
         free(line);
     }

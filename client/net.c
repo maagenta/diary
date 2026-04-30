@@ -33,7 +33,7 @@ static int recv_line(int fd, char *buf, size_t bufsz) {
     return (int)i;
 }
 
-/* Envia payload grande: <prefix><b64>\n sin buffer intermedio */
+/* Send large payload: <prefix><b64>\n without intermediate buffer */
 static int send_encrypted(int fd, const char *prefix,
                             const char *b64, size_t b64_len) {
     size_t plen = strlen(prefix);
@@ -42,7 +42,7 @@ static int send_encrypted(int fd, const char *prefix,
             write(fd, "\n", 1)       == 1) ? 0 : -1;
 }
 
-/* Cifra text y lo deja en *b64_out (malloc). Devuelve longitud o -1. */
+/* Encrypt text and store result in *b64_out (malloc). Returns length or -1. */
 static ssize_t encrypt_text(const char *text, size_t tlen,
                               const unsigned char *enc_pk, char **b64_out) {
     size_t seal_len = tlen + crypto_box_SEALBYTES;
@@ -58,7 +58,7 @@ static ssize_t encrypt_text(const char *text, size_t tlen,
 }
 
 /* ------------------------------------------------------------------ */
-/* Conexion y autenticacion                                             */
+/* Connection and authentication                                        */
 /* ------------------------------------------------------------------ */
 
 int net_connect(diary_conn_t *conn, const char *host, int port) {
@@ -135,10 +135,10 @@ void net_disconnect(diary_conn_t *conn) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Operaciones                                                          */
+/* Operations                                                           */
 /* ------------------------------------------------------------------ */
 
-/* POST: devuelve id asignado (>= 1) o -1 */
+/* POST: returns assigned id (>= 1) or -1 */
 int net_post_entry(diary_conn_t *conn, const char *text) {
     char *b64 = NULL;
     ssize_t b64_len = encrypt_text(text, strlen(text), conn->keys.enc_pk, &b64);
@@ -149,12 +149,11 @@ int net_post_entry(diary_conn_t *conn, const char *text) {
 
     char line[64];
     if (recv_line(conn->fd, line, sizeof(line)) < 0) return -1;
-    /* Respuesta: "OK <id>" */
     if (strncmp(line, "OK ", 3) == 0) return atoi(line + 3);
     return -1;
 }
 
-/* UPDATE: devuelve id en exito, -1 en error */
+/* UPDATE: returns id on success, -1 on error */
 int net_update_entry(diary_conn_t *conn, int id, const char *text) {
     char *b64 = NULL;
     ssize_t b64_len = encrypt_text(text, strlen(text), conn->keys.enc_pk, &b64);
@@ -171,7 +170,7 @@ int net_update_entry(diary_conn_t *conn, int id, const char *text) {
     return (strcmp(line, "OK") == 0) ? id : -1;
 }
 
-/* DELETE: devuelve 0 ok, -1 error */
+/* DELETE: returns 0 on success, -1 on error */
 int net_delete_entry(diary_conn_t *conn, int id) {
     char cmd[32];
     snprintf(cmd, sizeof(cmd), "DELETE %d", id);
@@ -181,7 +180,7 @@ int net_delete_entry(diary_conn_t *conn, int id) {
     return (strcmp(line, "OK") == 0) ? 0 : -1;
 }
 
-/* GET: descarga y descifra */
+/* GET: download and decrypt entries */
 int net_get_entries(diary_conn_t *conn,
                      diary_entry_t **entries, int *count) {
     if (send_line(conn->fd, "GET") < 0) return -1;
@@ -212,7 +211,7 @@ int net_get_entries(diary_conn_t *conn,
                                   plain, sizeof(plain) - 1);
         free(tmp);
         plain[plen > 0 ? plen : 0] = '\0';
-        arr[i].text = strdup(plen > 0 ? (char *)plain : "[no se pudo descifrar]");
+        arr[i].text = strdup(plen > 0 ? (char *)plain : "[could not decrypt]");
     }
 
     *entries = arr; *count = n;
