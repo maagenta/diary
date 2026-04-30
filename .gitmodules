@@ -1,0 +1,3 @@
+[submodule "android-client/app/src/main/cpp/libsodium"]
+	path = android-client/app/src/main/cpp/libsodium
+	url = https://github.com/jedisct1/libsodium.git

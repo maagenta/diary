@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Server host" />
+
+    <EditText
+        android:id="@+id/edit_host"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="192.168.1.10"
+        android:inputType="textNoSuggestions" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="Port" />
+
+    <EditText
+        android:id="@+id/edit_port"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="4242"
+        android:inputType="number" />
+
+    <Button
+        android:id="@+id/btn_auth_key"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Load auth.key" />
+
+    <TextView
+        android:id="@+id/label_auth_key"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="auth.key: not loaded" />
+
+    <Button
+        android:id="@+id/btn_enc_key"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Load enc.key" />
+
+    <TextView
+        android:id="@+id/label_enc_key"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="enc.key: not loaded" />
+
+    <Button
+        android:id="@+id/btn_save"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Save and connect" />
+
+</LinearLayout>
