@@ -2,12 +2,16 @@ package uk.coko.forge.diary;
 
 import android.app.Activity;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.DocumentsContract;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.EditText;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -88,6 +92,7 @@ public class EntryActivity extends Activity {
         saving = true;
         setStatus("Saving...");
         executor.execute(() -> {
+            saveBackup(text);
             try {
                 if (entryId > 0) conn.updateEntry(entryId, text);
                 else             entryId = conn.postEntry(text);
@@ -102,6 +107,42 @@ public class EntryActivity extends Activity {
                 });
             }
         });
+    }
+
+    private void saveBackup(String text) {
+        SharedPreferences prefs = getSharedPreferences(SetupActivity.PREFS, MODE_PRIVATE);
+        if (!prefs.getBoolean(SetupActivity.KEY_BACKUP_ENABLED, false)) return;
+        String uriStr = prefs.getString(SetupActivity.KEY_BACKUP_URI, null);
+        if (uriStr == null) return;
+
+        try {
+            Uri treeUri  = Uri.parse(uriStr);
+            String docId = DocumentsContract.getTreeDocumentId(treeUri);
+            Uri docUri   = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId);
+            String name  = entryTs + ".txt";
+
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId);
+            Uri fileUri = null;
+            try (android.database.Cursor c = getContentResolver().query(childrenUri,
+                    new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                                 DocumentsContract.Document.COLUMN_DISPLAY_NAME},
+                    null, null, null)) {
+                while (c != null && c.moveToNext()) {
+                    if (name.equals(c.getString(1))) {
+                        fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, c.getString(0));
+                        break;
+                    }
+                }
+            }
+
+            if (fileUri == null)
+                fileUri = DocumentsContract.createDocument(getContentResolver(), docUri, "text/plain", name);
+            if (fileUri == null) return;
+
+            try (OutputStream os = getContentResolver().openOutputStream(fileUri, "wt")) {
+                os.write(text.getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {}
     }
 
     private void setupConnection() {

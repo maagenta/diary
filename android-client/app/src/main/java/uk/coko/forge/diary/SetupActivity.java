@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
@@ -16,17 +17,22 @@ import java.io.InputStream;
 
 public class SetupActivity extends Activity {
 
-    private static final int REQ_AUTH_KEY = 1;
-    private static final int REQ_ENC_KEY  = 2;
+    private static final int REQ_AUTH_KEY   = 1;
+    private static final int REQ_ENC_KEY    = 2;
+    private static final int REQ_BACKUP_DIR = 3;
 
-    static final String PREFS       = "diary_prefs";
-    static final String KEY_HOST    = "host";
-    static final String KEY_PORT    = "port";
-    static final String KEY_AUTH_SK = "auth_sk_b64";
-    static final String KEY_ENC_SK  = "enc_sk_b64";
+    static final String PREFS              = "diary_prefs";
+    static final String KEY_HOST           = "host";
+    static final String KEY_PORT           = "port";
+    static final String KEY_AUTH_SK        = "auth_sk_b64";
+    static final String KEY_ENC_SK         = "enc_sk_b64";
+    static final String KEY_BACKUP_ENABLED = "backup_enabled";
+    static final String KEY_BACKUP_URI     = "backup_uri";
 
     private EditText hostEdit, portEdit;
-    private TextView authKeyLabel, encKeyLabel;
+    private TextView authKeyLabel, encKeyLabel, backupDirLabel;
+    private Switch   backupSwitch;
+    private Button   backupDirBtn;
     private byte[]   authSkBytes, encSkBytes;
 
     @Override
@@ -34,14 +40,26 @@ public class SetupActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_setup);
 
-        hostEdit     = findViewById(R.id.edit_host);
-        portEdit     = findViewById(R.id.edit_port);
-        authKeyLabel = findViewById(R.id.label_auth_key);
-        encKeyLabel  = findViewById(R.id.label_enc_key);
+        hostEdit      = findViewById(R.id.edit_host);
+        portEdit      = findViewById(R.id.edit_port);
+        authKeyLabel  = findViewById(R.id.label_auth_key);
+        encKeyLabel   = findViewById(R.id.label_enc_key);
+        backupSwitch  = findViewById(R.id.switch_backup);
+        backupDirBtn  = findViewById(R.id.btn_backup_dir);
+        backupDirLabel = findViewById(R.id.label_backup_dir);
 
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         hostEdit.setText(prefs.getString(KEY_HOST, ""));
         portEdit.setText(prefs.getString(KEY_PORT, "4242"));
+
+        boolean backupEnabled = prefs.getBoolean(KEY_BACKUP_ENABLED, false);
+        backupSwitch.setChecked(backupEnabled);
+        updateBackupDirVisibility(backupEnabled);
+
+        String backupUri = prefs.getString(KEY_BACKUP_URI, null);
+        if (backupUri != null) backupDirLabel.setText(Uri.parse(backupUri).getLastPathSegment());
+
+        backupSwitch.setOnCheckedChangeListener((v, checked) -> updateBackupDirVisibility(checked));
 
         Button btnAuthKey = findViewById(R.id.btn_auth_key);
         Button btnEncKey  = findViewById(R.id.btn_enc_key);
@@ -49,6 +67,7 @@ public class SetupActivity extends Activity {
 
         btnAuthKey.setOnClickListener(v -> pickFile(REQ_AUTH_KEY));
         btnEncKey.setOnClickListener(v  -> pickFile(REQ_ENC_KEY));
+        backupDirBtn.setOnClickListener(v -> pickBackupDir());
         btnSave.setOnClickListener(v    -> save());
     }
 
@@ -58,10 +77,31 @@ public class SetupActivity extends Activity {
         startActivityForResult(intent, requestCode);
     }
 
+    private void pickBackupDir() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        startActivityForResult(intent, REQ_BACKUP_DIR);
+    }
+
+    private void updateBackupDirVisibility(boolean enabled) {
+        int vis = enabled ? View.VISIBLE : View.GONE;
+        backupDirBtn.setVisibility(vis);
+        backupDirLabel.setVisibility(vis);
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (resultCode != RESULT_OK || data == null) return;
         Uri uri = data.getData();
+
+        if (requestCode == REQ_BACKUP_DIR) {
+            getContentResolver().takePersistableUriPermission(uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString(KEY_BACKUP_URI, uri.toString()).apply();
+            backupDirLabel.setText(uri.getLastPathSegment());
+            return;
+        }
+
         try {
             byte[] bytes = readUri(uri);
             String b64line = new String(bytes).trim();
@@ -92,6 +132,7 @@ public class SetupActivity extends Activity {
         ed.putString(KEY_PORT, port);
         ed.putString(KEY_AUTH_SK, Crypto.encodeBase64(authSkBytes));
         ed.putString(KEY_ENC_SK,  Crypto.encodeBase64(encSkBytes));
+        ed.putBoolean(KEY_BACKUP_ENABLED, backupSwitch.isChecked());
         ed.apply();
 
         startActivity(new Intent(this, MainActivity.class));
