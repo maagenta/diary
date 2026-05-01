@@ -70,7 +70,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQ_EDITOR && resultCode == RESULT_OK) loadEntries();
+        if (requestCode == REQ_EDITOR) loadEntries();
     }
 
     private void connectAndLoad() {
@@ -106,6 +106,7 @@ public class MainActivity extends Activity {
         executor.execute(() -> {
             try {
                 List<DiaryEntry> list = conn.getEntries();
+                list.sort((a, b) -> Long.compare(b.timestamp, a.timestamp));
                 handler.post(() -> {
                     entries = list;
                     refreshList();
