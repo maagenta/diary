@@ -34,6 +34,11 @@ public class MainActivity extends Activity {
     private ArrayAdapter<String> adapter;
     private ListView listView;
 
+    private String host;
+    private int    port;
+    private String authB64;
+    private String encB64;
+
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
 
     @Override
@@ -75,10 +80,10 @@ public class MainActivity extends Activity {
 
     private void connectAndLoad() {
         SharedPreferences prefs = getSharedPreferences(SetupActivity.PREFS, MODE_PRIVATE);
-        String host    = prefs.getString(SetupActivity.KEY_HOST, null);
-        String portStr = prefs.getString(SetupActivity.KEY_PORT, "4242");
-        String authB64 = prefs.getString(SetupActivity.KEY_AUTH_SK, null);
-        String encB64  = prefs.getString(SetupActivity.KEY_ENC_SK, null);
+        host   = prefs.getString(SetupActivity.KEY_HOST, null);
+        port   = Integer.parseInt(prefs.getString(SetupActivity.KEY_PORT, "4242"));
+        authB64 = prefs.getString(SetupActivity.KEY_AUTH_SK, null);
+        encB64  = prefs.getString(SetupActivity.KEY_ENC_SK, null);
 
         if (host == null || authB64 == null || encB64 == null) {
             openSetup(); return;
@@ -86,7 +91,6 @@ public class MainActivity extends Activity {
 
         byte[] authSk = Crypto.decodeBase64(authB64);
         byte[] encSk  = Crypto.decodeBase64(encB64);
-        int    port   = Integer.parseInt(portStr);
 
         setStatus("Connecting...");
         executor.execute(() -> {
@@ -113,6 +117,7 @@ public class MainActivity extends Activity {
                     setStatus("");
                 });
             } catch (Exception e) {
+                connectAndLoad();
                 handler.post(() -> setStatus("Error: " + e.getMessage()));
             }
         });

@@ -27,6 +27,7 @@ public class EntryActivity extends Activity {
     private int             entryId;
     private long            entryTs;
     private boolean         saving = false;
+    private String          originalText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +43,7 @@ public class EntryActivity extends Activity {
         getActionBar().setTitle(entryId > 0 ? "Entry #" + entryId + " — " + date : "New entry");
         getActionBar().setDisplayHomeAsUpEnabled(true);
 
+        originalText = initialText != null ? initialText : "";
         editText = findViewById(R.id.edit_content);
         if (initialText != null) editText.setText(initialText);
 
@@ -68,10 +70,38 @@ public class EntryActivity extends Activity {
 
     @Override
     public boolean onNavigateUp() {
-        handler.removeCallbacks(saveTask);
-        if (!saving) save();
-        finish();
+        saveAndClose();
         return true;
+    }
+
+    @Override
+    public void onBackPressed() {
+        saveAndClose();
+    }
+
+    private void saveAndClose() {
+        handler.removeCallbacks(saveTask);
+        if (conn == null) { finish(); return; }
+        String text = editText.getText().toString();
+        if (text.isEmpty() || text.equals(originalText)) { finish(); return; }
+
+        saving = true;
+        setStatus("Saving...");
+        executor.execute(() -> {
+            try {
+                if (entryId > 0) conn.updateEntry(entryId, text);
+                else             entryId = conn.postEntry(text);
+                handler.post(() -> {
+                    setResult(RESULT_OK);
+                    finish();
+                });
+            } catch (Exception e) {
+                handler.post(() -> {
+                    setStatus("Save failed");
+                    finish();
+                });
+            }
+        });
     }
 
     private void setupConnection() {
