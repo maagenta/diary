@@ -1,4 +1,6 @@
-# Diary
+<p align="right"><img width="128px" src="https://github.com/maagenta/diary/blob/main/icon/256.png?raw=true"></p>
+
+# Diary 
 
 Personal diary application with end-to-end encryption, accessible over the network. Client-server architecture written in C.
 
