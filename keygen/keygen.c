@@ -43,20 +43,16 @@ int main(void) {
 
     /* --- Encryption key pair (X25519) --- */
     printf("\nGenerating encryption key pair (X25519)...\n");
-    unsigned char enc_pk[crypto_box_PUBLICKEYBYTES];
     unsigned char enc_sk[crypto_box_SECRETKEYBYTES];
-    crypto_box_keypair(enc_pk, enc_sk);
+    randombytes_buf(enc_sk, sizeof(enc_sk));
 
     if (write_key_file("enc.key", enc_sk, crypto_box_SECRETKEYBYTES) != 0)
-        return 1;
-    if (write_key_file("enc.pub", enc_pk, crypto_box_PUBLICKEYBYTES) != 0)
         return 1;
 
     printf("\nKeys generated successfully:\n");
     printf("  auth.key  — authentication private key (KEEP SECRET)\n");
     printf("  auth.pub  — authentication public key\n");
     printf("  enc.key   — encryption private key     (KEEP SECRET)\n");
-    printf("  enc.pub   — encryption public key\n");
     printf("\nRun the client with:\n");
     printf("  diary-client -a auth.key -e enc.key\n");
     return 0;

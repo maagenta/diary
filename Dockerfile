@@ -18,4 +18,4 @@ COPY --from=builder /src/build/diary-server /usr/local/bin/diary-server
 VOLUME ["/data"]
 EXPOSE 4242
 
-ENTRYPOINT ["diary-server", "-p", "4242", "-k", "/data/server.pub", "-db", "/data/diary.db"]
+ENTRYPOINT ["diary-server", "-p", "4242", "-k", "/data/auth.pub", "-db", "/data/diary.db"]
