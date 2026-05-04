@@ -1,0 +1,30 @@
+[Unit]
+Description=Diary Server
+After=network.target
+
+[Service]
+Type=simple
+
+# User and group to run the server as
+User=diary
+Group=diary
+
+# Working directory (where the server binary is located)
+WorkingDirectory=/opt/diary
+
+# Path to the server binary and arguments:
+#   -p  port number (default 4242)
+#   -k  path to the server public key file
+#   -db path to the database file
+ExecStart=/opt/diary/diary-server -p 4242 -k /opt/diary/server.pub -db /opt/diary/diary.db
+
+# Restart automatically if the server crashes
+Restart=on-failure
+RestartSec=5
+
+# Logging goes to journald (use: journalctl -u diary)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

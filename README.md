@@ -110,7 +110,25 @@ build/diary-server -p 8080 -k auth.pub -db /path/to/diary.db
 | `-k FILE` | Authorized authentication public key | required |
 | `-db FILE` | Path to SQLite database | required |
 
-### 3. Connect the client
+### 3. Run as a systemd service (optional)
+
+```bash
+# Edit server/diary.service to set the correct paths and user
+sudo cp server/diary.service /etc/systemd/system/diary.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable diary   # start on boot
+sudo systemctl start diary    # start now
+```
+
+Check status and logs:
+
+```bash
+sudo systemctl status diary
+journalctl -u diary -f
+```
+
+### 4. Connect the client
 
 ```bash
 build/diary-client -a auth.key -e enc.key
