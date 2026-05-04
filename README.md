@@ -93,7 +93,6 @@ Generates:
 - `auth.key` — authentication private key **(keep secret)**
 - `auth.pub` — authentication public key
 - `enc.key`  — encryption private key **(keep secret)**
-- `enc.pub`  — encryption public key
 
 ### 2. Start the server
 
@@ -110,22 +109,38 @@ build/diary-server -p 8080 -k auth.pub -db /path/to/diary.db
 | `-k FILE` | Authorized authentication public key | required |
 | `-db FILE` | Path to SQLite database | required |
 
-### 3. Run as a systemd service (optional)
+### 3. Run with Docker (optional)
+
+Build the image:
 
 ```bash
-# Edit server/diary.service to set the correct paths and user
-sudo cp server/diary.service /etc/systemd/system/diary.service
-
-sudo systemctl daemon-reload
-sudo systemctl enable diary   # start on boot
-sudo systemctl start diary    # start now
+docker build -t diary-server .
 ```
 
-Check status and logs:
+Run the container, mounting a directory that contains `auth.pub` and optionally an existing `diary.db`:
 
 ```bash
-sudo systemctl status diary
-journalctl -u diary -f
+docker run -d \
+  -v /path/to/your/keys:/data \
+  -p 4242:4242 \
+  --name diary \
+  diary-server
+```
+
+The container expects:
+- `/data/auth.pub` — authentication public key (required)
+- `/data/diary.db` — SQLite database (created automatically if absent)
+
+Logs:
+
+```bash
+docker logs -f diary
+```
+
+Stop and remove:
+
+```bash
+docker stop diary && docker rm diary
 ```
 
 ### 4. Connect the client
