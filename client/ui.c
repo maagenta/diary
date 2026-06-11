@@ -363,14 +363,16 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
         } else if (ch == '\n' || ch == '\r' || ch == KEY_ENTER) {
             if (buf_len + 1 >= buf_sz) {
                 buf_sz *= 2; char *nb = realloc(buf, buf_sz);
-                if (!nb) break; buf = nb;
+                if (!nb) break;
+                buf = nb;
             }
             memmove(buf + cursor + 1, buf + cursor, buf_len - cursor);
             buf[cursor] = '\n'; buf_len++; cursor++; dirty = 1;
         } else if (isprint(ch)) {
             if (buf_len + 1 >= buf_sz) {
                 buf_sz *= 2; char *nb = realloc(buf, buf_sz);
-                if (!nb) break; buf = nb;
+                if (!nb) break;
+                buf = nb;
             }
             memmove(buf + cursor + 1, buf + cursor, buf_len - cursor);
             buf[cursor] = (char)ch; buf_len++; cursor++; dirty = 1;
