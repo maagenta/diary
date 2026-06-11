@@ -1,6 +1,32 @@
 # Build output
 build/
 
+# Android build outputs
+android-client/app/build/
+android-client/build/
+android-client/.gradle/
+android-client/app/.cxx/
+android-client/local.properties
+
+# Android Studio / IntelliJ IDEA
+*.iml
+.idea/
+android-client/.idea/
+android-client/captures/
+android-client/.externalNativeBuild/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle wrapper (keep gradlew scripts, ignore generated jars)
+android-client/gradle/wrapper/gradle-wrapper.jar
+
+# Keystore / signing
+*.jks
+*.keystore
+keystore.properties
+
 # C compilation artifacts
 *.o
 *.d

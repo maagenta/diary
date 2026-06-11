@@ -1,6 +1,7 @@
 #include "net.h"
 #include "ui.h"
 #include "../common/protocol.h"
+#include "../common/version.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +16,8 @@ static void usage(const char *prog) {
         "  -h HOST        Server address (default: 127.0.0.1)\n"
         "  -p PORT        Port           (default: %d)\n"
         "  -a AUTH_SK     Authentication private key (default: auth.key)\n"
-        "  -e ENC_SK      Encryption private key     (default: enc.key)\n",
+        "  -e ENC_SK      Encryption private key     (default: enc.key)\n"
+        "  -v             Print version and exit\n",
         prog, DIARY_PORT);
 }
 
@@ -31,12 +33,15 @@ int main(int argc, char *argv[]) {
     const char *enc_sk    = "enc.key";
 
     int opt;
-    while ((opt = getopt(argc, argv, "h:p:a:e:")) != -1) {
+    while ((opt = getopt(argc, argv, "h:p:a:e:v")) != -1) {
         switch (opt) {
         case 'h': host    = optarg; break;
         case 'p': port    = atoi(optarg); break;
         case 'a': auth_sk = optarg; break;
         case 'e': enc_sk  = optarg; break;
+        case 'v':
+            printf("diary-client %s\n", DIARY_VERSION);
+            return 0;
         default:
             usage(argv[0]);
             return 1;

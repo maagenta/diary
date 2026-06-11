@@ -1,6 +1,7 @@
 #include "client_handler.h"
 #include "storage.h"
 #include "../common/protocol.h"
+#include "../common/version.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -113,6 +114,9 @@ int main(int argc, char *argv[]) {
             pubkey_path = argv[++i];
         } else if (strcmp(argv[i], "-db") == 0 && i + 1 < argc) {
             db_path = argv[++i];
+        } else if (strcmp(argv[i], "-v") == 0) {
+            printf("diary-server %s\n", DIARY_VERSION);
+            return 0;
         } else {
             fprintf(stderr,
                     "Usage: %s [-p port] -k pub-key-file -db database-file\n",

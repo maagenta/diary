@@ -1,3 +1,4 @@
+#include "../common/version.h"
 #include <sodium.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +23,12 @@ static int write_key_file(const char *path,
     return 0;
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+    if (argc > 1 && strcmp(argv[1], "-v") == 0) {
+        printf("keygen %s\n", DIARY_VERSION);
+        return 0;
+    }
+
     if (sodium_init() < 0) {
         fprintf(stderr, "Error: could not initialize libsodium\n");
         return 1;
