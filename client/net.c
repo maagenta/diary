@@ -180,6 +180,14 @@ int net_delete_entry(diary_conn_t *conn, int id) {
     return (strcmp(line, "OK") == 0) ? 0 : -1;
 }
 
+/* Newest first; ties broken by highest id */
+static int entry_cmp_newest_first(const void *a, const void *b) {
+    const diary_entry_t *ea = a, *eb = b;
+    if (ea->timestamp != eb->timestamp)
+        return (ea->timestamp < eb->timestamp) ? 1 : -1;
+    return eb->id - ea->id;
+}
+
 /* GET: download and decrypt entries */
 int net_get_entries(diary_conn_t *conn,
                      diary_entry_t **entries, int *count) {
@@ -213,6 +221,8 @@ int net_get_entries(diary_conn_t *conn,
         plain[plen > 0 ? plen : 0] = '\0';
         arr[i].text = strdup(plen > 0 ? (char *)plain : "[could not decrypt]");
     }
+
+    qsort(arr, n, sizeof(diary_entry_t), entry_cmp_newest_first);
 
     *entries = arr; *count = n;
     return 0;
