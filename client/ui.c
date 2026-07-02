@@ -45,6 +45,16 @@ static void draw_status(int rows, int cols, const char *msg) {
     attroff(COLOR_PAIR(COLOR_STATUS));
 }
 
+/* UTF-8: continuation bytes (10xxxxxx) take no extra column */
+static int u8_is_cont(unsigned char c) { return (c & 0xC0) == 0x80; }
+
+/* Length in bytes of the UTF-8 character starting at buf[i] */
+static size_t u8_char_len(const char *buf, size_t len, size_t i) {
+    size_t n = 1;
+    while (i + n < len && u8_is_cont((unsigned char)buf[i + n])) n++;
+    return n;
+}
+
 static char *format_ts(time_t ts) {
     static char buf[32];
     struct tm *t = localtime(&ts);
@@ -62,6 +72,7 @@ static void get_vpos(const char *buf, size_t buf_len, size_t cursor,
                       int cols, int *vr, int *vc) {
     int r = 0, c = 0;
     for (size_t i = 0; i < cursor && i < buf_len; i++) {
+        if (u8_is_cont((unsigned char)buf[i])) continue;
         if (buf[i] == '\n' || c >= cols - 1) { r++; c = 0; if (buf[i] == '\n') continue; }
         c++;
     }
@@ -74,6 +85,7 @@ static size_t vpos_to_idx(const char *buf, size_t buf_len,
                             int cols, int tvr, int tvc) {
     int r = 0, c = 0;
     for (size_t i = 0; i <= buf_len; i++) {
+        if (i < buf_len && u8_is_cont((unsigned char)buf[i])) continue;
         if (r == tvr && c == tvc) return i;
         if (i == buf_len) return i;
         char ch = buf[i];
@@ -129,6 +141,7 @@ static void screen_view(diary_entry_t *e) {
 
     int total_vrows = 1, vcol = 0;
     for (size_t i = 0; i < tlen; i++) {
+        if (u8_is_cont((unsigned char)text[i])) continue;
         if (text[i] == '\n' || vcol >= cols - 1) { total_vrows++; vcol = 0; if (text[i] == '\n') continue; }
         vcol++;
     }
@@ -147,12 +160,14 @@ static void screen_view(diary_entry_t *e) {
         for (int r = 1; r < rows - 1; r++) { wmove(win, r, 0); wclrtoeol(win); }
 
         int vrow = 0; vcol = 0;
-        for (size_t i = 0; i < tlen; i++) {
+        for (size_t i = 0; i < tlen; ) {
             char c = text[i];
-            if (c == '\n' || vcol >= cols - 1) { vrow++; vcol = 0; if (c == '\n') continue; }
+            size_t clen = u8_char_len(text, tlen, i);
+            if (c == '\n' || vcol >= cols - 1) { vrow++; vcol = 0; if (c == '\n') { i++; continue; } }
             int wr = vrow - view_top + 1;
-            if (wr >= 1 && wr < rows - 1) mvwaddch(win, wr, vcol, (unsigned char)c);
+            if (wr >= 1 && wr < rows - 1) mvwaddnstr(win, wr, vcol, text + i, (int)clen);
             vcol++;
+            i += clen;
         }
 
         wattron(win, COLOR_PAIR(COLOR_STATUS));
@@ -257,12 +272,14 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
         for (int r = 1; r < rows - 1; r++) { wmove(win, r, 0); wclrtoeol(win); }
 
         int vrow = 0, vcol = 0;
-        for (size_t i = 0; i < buf_len; i++) {
+        for (size_t i = 0; i < buf_len; ) {
             char c = buf[i];
-            if (c == '\n' || vcol >= cols - 1) { vrow++; vcol = 0; if (c == '\n') continue; }
+            size_t clen = u8_char_len(buf, buf_len, i);
+            if (c == '\n' || vcol >= cols - 1) { vrow++; vcol = 0; if (c == '\n') { i++; continue; } }
             int wr = vrow - view_top + 1;
-            if (wr >= 1 && wr < rows - 1) mvwaddch(win, wr, vcol, (unsigned char)c);
+            if (wr >= 1 && wr < rows - 1) mvwaddnstr(win, wr, vcol, buf + i, (int)clen);
             vcol++;
+            i += clen;
         }
 
         wattron(win, COLOR_PAIR(COLOR_STATUS));
@@ -333,8 +350,13 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
             if (cur_vrow > 0) cursor = vpos_to_idx(buf, buf_len, cols, cur_vrow - 1, cur_vcol);
         } else if (ch == KEY_DOWN) {
             cursor = vpos_to_idx(buf, buf_len, cols, cur_vrow + 1, cur_vcol);
-        } else if (ch == KEY_LEFT  && cursor > 0)      { cursor--; }
-        else if   (ch == KEY_RIGHT && cursor < buf_len) { cursor++; }
+        } else if (ch == KEY_LEFT  && cursor > 0) {
+            cursor--;
+            while (cursor > 0 && u8_is_cont((unsigned char)buf[cursor])) cursor--;
+        }
+        else if   (ch == KEY_RIGHT && cursor < buf_len) {
+            cursor += u8_char_len(buf, buf_len, cursor);
+        }
         else if   (ch == KEY_HOME) { cursor = vpos_to_idx(buf, buf_len, cols, cur_vrow, 0); }
         else if   (ch == KEY_END)  { cursor = vpos_to_idx(buf, buf_len, cols, cur_vrow, cols); }
 
@@ -352,13 +374,16 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
         /* ---- Editing ---- */
         } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 8) {
             if (cursor > 0) {
-                memmove(buf + cursor - 1, buf + cursor, buf_len - cursor);
-                buf_len--; cursor--; dirty = 1;
+                size_t start = cursor - 1;
+                while (start > 0 && u8_is_cont((unsigned char)buf[start])) start--;
+                memmove(buf + start, buf + cursor, buf_len - cursor);
+                buf_len -= cursor - start; cursor = start; dirty = 1;
             }
         } else if (ch == KEY_DC) {
             if (cursor < buf_len) {
-                memmove(buf + cursor, buf + cursor + 1, buf_len - cursor - 1);
-                buf_len--; dirty = 1;
+                size_t clen = u8_char_len(buf, buf_len, cursor);
+                memmove(buf + cursor, buf + cursor + clen, buf_len - cursor - clen);
+                buf_len -= clen; dirty = 1;
             }
         } else if (ch == '\n' || ch == '\r' || ch == KEY_ENTER) {
             if (buf_len + 1 >= buf_sz) {
@@ -368,7 +393,7 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
             }
             memmove(buf + cursor + 1, buf + cursor, buf_len - cursor);
             buf[cursor] = '\n'; buf_len++; cursor++; dirty = 1;
-        } else if (isprint(ch)) {
+        } else if (isprint(ch) || (ch >= 0x80 && ch <= 0xFF)) { /* ASCII or UTF-8 byte */
             if (buf_len + 1 >= buf_sz) {
                 buf_sz *= 2; char *nb = realloc(buf, buf_sz);
                 if (!nb) break;

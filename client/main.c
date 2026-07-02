@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <locale.h>
 #include <sodium.h>
 
 static void usage(const char *prog) {
@@ -22,6 +23,9 @@ static void usage(const char *prog) {
 }
 
 int main(int argc, char *argv[]) {
+    /* Required for ncurses to handle UTF-8 input/output */
+    setlocale(LC_ALL, "");
+
     if (sodium_init() < 0) {
         fprintf(stderr, "Error: could not initialize libsodium\n");
         return 1;
