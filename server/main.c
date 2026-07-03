@@ -1,27 +1,17 @@
 #include "client_handler.h"
 #include "storage.h"
-#include "../common/protocol.h"
+#include "../protocol/crypto.h"
+#include "../protocol/serve.h"
 #include "../common/version.h"
+#include "../common/diary.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <signal.h>
 #include <limits.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <libgen.h>
-#include <sodium.h>
-
-static void reap_children(int sig) {
-    (void)sig;
-    while (waitpid(-1, NULL, WNOHANG) > 0);
-}
 
 /* Recursively create directories (equivalent to mkdir -p) */
 static int mkdirs(const char *path) {
@@ -38,39 +28,6 @@ static int mkdirs(const char *path) {
             tmp[i] = save;
         }
     }
-    return 0;
-}
-
-/* Read an Ed25519 public key (base64) and return its hex representation */
-static int load_pubkey_hex(const char *path,
-                             char *hex_out, size_t hex_sz) {
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        fprintf(stderr, "Error: could not open %s: %s\n", path, strerror(errno));
-        return -1;
-    }
-    char b64[512];
-    if (!fgets(b64, sizeof(b64), f)) {
-        fclose(f);
-        fprintf(stderr, "Error: empty key file: %s\n", path);
-        return -1;
-    }
-    fclose(f);
-
-    size_t l = strlen(b64);
-    while (l > 0 && (b64[l - 1] == '\n' || b64[l - 1] == '\r'))
-        b64[--l] = '\0';
-
-    unsigned char pk[AUTH_PK_LEN];
-    size_t pk_len = 0;
-    if (sodium_base642bin(pk, sizeof(pk), b64, l,
-                           NULL, &pk_len, NULL,
-                           sodium_base64_VARIANT_ORIGINAL) != 0
-        || pk_len != AUTH_PK_LEN) {
-        fprintf(stderr, "Error: invalid public key in %s\n", path);
-        return -1;
-    }
-    sodium_bin2hex(hex_out, hex_sz, pk, AUTH_PK_LEN);
     return 0;
 }
 
@@ -138,13 +95,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (sodium_init() < 0) {
+    if (proto_init() != 0) {
         fprintf(stderr, "Error: could not initialize libsodium\n");
         return 1;
     }
 
     char allowed_hex[AUTH_PK_LEN * 2 + 1];
-    if (load_pubkey_hex(pubkey_path, allowed_hex, sizeof(allowed_hex)) != 0)
+    if (proto_load_pubkey_hex(pubkey_path, allowed_hex, sizeof(allowed_hex)) != 0)
         return 1;
 
     if (ensure_db_dir(db_path) != 0)
@@ -162,54 +119,12 @@ int main(int argc, char *argv[]) {
     else
         printf("Using database %s\n", db_path);
 
-    signal(SIGPIPE, SIG_IGN);
-    struct sigaction sa;
-    sa.sa_handler = reap_children;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    sigaction(SIGCHLD, &sa, NULL);
-
-    int srv = socket(AF_INET, SOCK_STREAM, 0);
-    if (srv < 0) { perror("socket"); return 1; }
-
-    int opt = 1;
-    setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port        = htons((uint16_t)port);
-
-    if (bind(srv, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("bind"); return 1;
-    }
-    if (listen(srv, 16) < 0) {
-        perror("listen"); return 1;
-    }
-
     printf("Diary server listening on port %d\n", port);
 
-    while (1) {
-        struct sockaddr_in cli_addr;
-        socklen_t cli_len = sizeof(cli_addr);
-        int cli = accept(srv, (struct sockaddr *)&cli_addr, &cli_len);
-        if (cli < 0) continue;
-
-        printf("Connection from %s:%d\n",
-               inet_ntoa(cli_addr.sin_addr),
-               ntohs(cli_addr.sin_port));
-
-        pid_t pid = fork();
-        if (pid == 0) {
-            close(srv);
-            handle_client(cli, db_path, allowed_hex);
-            close(cli);
-            exit(0);
-        }
-        close(cli);
+    /* Blocks: accept + fork + authenticate, then diary_handle per client. */
+    if (proto_serve(port, allowed_hex, diary_handle, (void *)db_path) != 0) {
+        fprintf(stderr, "Error: could not start server on port %d\n", port);
+        return 1;
     }
-
-    close(srv);
     return 0;
 }

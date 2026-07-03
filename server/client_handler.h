@@ -1,9 +1,10 @@
 #ifndef CLIENT_HANDLER_H
 #define CLIENT_HANDLER_H
 
-/* Maneja una conexion de cliente. Llamado tras fork().
- * db_path      — ruta al archivo SQLite
- * allowed_hex  — pubkey hex del unico usuario autorizado */
-void handle_client(int sock_fd, const char *db_path, const char *allowed_hex);
+/* proto_serve handler for one authenticated diary client.
+ *   fd        connected socket
+ *   user_hex  client's auth pubkey (hex), already authenticated
+ *   ctx       const char * db_path (SQLite file) */
+void diary_handle(int fd, const char *user_hex, void *ctx);
 
 #endif /* CLIENT_HANDLER_H */

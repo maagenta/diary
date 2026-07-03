@@ -6,7 +6,8 @@ BUILD  ?= ../build
 
 TARGET      = $(BUILD)/diary-server
 TARGET_ARM  = $(BUILD)/diary-server-arm64
-SRCS        = main.c client_handler.c storage.c
+SRCS        = main.c client_handler.c storage.c \
+              ../protocol/wire.c ../protocol/crypto.c ../protocol/auth.c ../protocol/serve.c
 
 $(TARGET): $(SRCS)
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)

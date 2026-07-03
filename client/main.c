@@ -1,13 +1,13 @@
 #include "net.h"
 #include "ui.h"
-#include "../common/protocol.h"
+#include "../protocol/crypto.h"
 #include "../common/version.h"
+#include "../common/diary.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <locale.h>
-#include <sodium.h>
 
 static void usage(const char *prog) {
     fprintf(stderr,
@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     /* Required for ncurses to handle UTF-8 input/output */
     setlocale(LC_ALL, "");
 
-    if (sodium_init() < 0) {
+    if (proto_init() != 0) {
         fprintf(stderr, "Error: could not initialize libsodium\n");
         return 1;
     }
@@ -52,11 +52,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    diary_conn_t conn;
+    proto_conn_t conn;
     memset(&conn, 0, sizeof(conn));
     conn.fd = -1;
 
-    if (crypto_load_keys(auth_sk, enc_sk, &conn.keys) != 0) {
+    if (proto_load_keys(auth_sk, enc_sk, &conn.keys) != 0) {
         fprintf(stderr,
             "Error loading keys.\n"
             "Generate a key pair with: ./keygen\n");
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
     }
 
     fprintf(stderr, "Connecting to %s:%d...\n", host, port);
-    if (net_connect(&conn, host, port) != 0) {
+    if (proto_connect(&conn, host, port) != 0) {
         fprintf(stderr, "Error: could not connect or authenticate\n");
         return 1;
     }
@@ -72,6 +72,6 @@ int main(int argc, char *argv[]) {
 
     ui_run(&conn);
 
-    net_disconnect(&conn);
+    proto_close(&conn);
     return 0;
 }

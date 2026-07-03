@@ -1,3 +1,9 @@
 [submodule "android-client/app/src/main/cpp/libsodium"]
 	path = android-client/app/src/main/cpp/libsodium
 	url = https://github.com/jedisct1/libsodium.git
+[submodule "authenticated-sealed-protocol"]
+	path = authenticated-sealed-protocol
+	url = https://github.com/maagenta/authenticated-sealed-protocol.git
+[submodule "protocol"]
+	path = protocol
+	url = https://github.com/maagenta/authenticated-sealed-protocol.git

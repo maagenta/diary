@@ -14,7 +14,8 @@ BUILD  ?= ../build
 
 TARGET      = $(BUILD)/diary-client
 TARGET_ARM  = $(BUILD)/diary-client-arm64
-SRCS        = main.c net.c crypto.c ui.c
+SRCS        = main.c net.c ui.c \
+              ../protocol/wire.c ../protocol/crypto.c ../protocol/auth.c
 
 $(TARGET): $(SRCS)
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)

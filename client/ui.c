@@ -211,7 +211,7 @@ static void screen_view(diary_entry_t *e) {
 /* ESC           -> exit                                                */
 /* ------------------------------------------------------------------ */
 
-static void screen_editor(diary_conn_t *conn, int entry_id,
+static void screen_editor(proto_conn_t *conn, int entry_id,
                             const char *initial_text, time_t timestamp) {
     /* Disable IXON so Ctrl+S reaches the app */
     struct termios tios_orig, tios;
@@ -413,7 +413,7 @@ static void screen_editor(diary_conn_t *conn, int entry_id,
 /* Main screen                                                          */
 /* ------------------------------------------------------------------ */
 
-static void reload_entries(diary_conn_t *conn,
+static void reload_entries(proto_conn_t *conn,
                              diary_entry_t **entries, int *count,
                              char *smsg, size_t ssz) {
     for (int i = 0; i < *count; i++) free((*entries)[i].text);
@@ -424,7 +424,7 @@ static void reload_entries(diary_conn_t *conn,
     }
 }
 
-static void screen_list(diary_conn_t *conn) {
+static void screen_list(proto_conn_t *conn) {
     int rows, cols;
     diary_entry_t *entries = NULL;
     int count = 0, selected = 0, scroll = 0;
@@ -538,7 +538,7 @@ static void screen_list(diary_conn_t *conn) {
 /* Entry point                                                          */
 /* ------------------------------------------------------------------ */
 
-void ui_run(diary_conn_t *conn) {
+void ui_run(proto_conn_t *conn) {
     initscr();
     set_escdelay(25);
     cbreak();

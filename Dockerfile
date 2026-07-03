@@ -3,6 +3,7 @@ FROM alpine:3.20 AS builder
 RUN apk add --no-cache build-base libsodium-dev sqlite-dev
 
 WORKDIR /src
+COPY protocol/ protocol/
 COPY common/ common/
 COPY server/  server/
 
