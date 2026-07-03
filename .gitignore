@@ -34,6 +34,15 @@ keystore.properties
 *.so
 *.dylib
 
+# VSCode
+.vscode/
+*.code-workspace
+
+# Vim
+*.swp
+*.swo
+*.swn
+
 # macOS
 .DS_Store
 .AppleDouble
