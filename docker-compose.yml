@@ -1,0 +1,10 @@
+services:
+  diary:
+    build: .
+    image: diary-server
+    container_name: diary
+    restart: unless-stopped
+    ports:
+      - "4242:4242"
+    volumes:
+      - ./data:/data
