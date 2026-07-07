@@ -20,6 +20,9 @@
 #define AUTOSAVE_MS   2000  /* autosave debounce (ms) */
 #define SCROLL_LINES  3     /* lines per mouse scroll event */
 
+/* --entry-at: date for new entries; 0 = let the server stamp them */
+static long g_entry_at = 0;
+
 /* ------------------------------------------------------------------ */
 /* General helpers                                                      */
 /* ------------------------------------------------------------------ */
@@ -320,7 +323,7 @@ static void screen_editor(proto_conn_t *conn, int entry_id,
             if (entry_id > 0)
                 new_id = net_update_entry(conn, entry_id, buf);
             else
-                new_id = net_post_entry(conn, buf);
+                new_id = net_post_entry(conn, buf, g_entry_at);
 
             if (new_id > 0) {
                 backup_remove(entry_id > 0 ? entry_id : 0);
@@ -496,7 +499,8 @@ static void screen_list(proto_conn_t *conn) {
         } else if (ch == '\n' || ch == KEY_ENTER) {
             if (count > 0) screen_view(&entries[selected]);
         } else if (ch == 'n' || ch == 'N') {
-            screen_editor(conn, 0, NULL, time(NULL));
+            screen_editor(conn, 0, NULL,
+                          g_entry_at > 0 ? (time_t)g_entry_at : time(NULL));
             reload_entries(conn, &entries, &count, status_msg, sizeof(status_msg));
             selected = count > 0 ? count - 1 : 0;
         } else if (ch == 'e' || ch == 'E') {
@@ -538,7 +542,8 @@ static void screen_list(proto_conn_t *conn) {
 /* Entry point                                                          */
 /* ------------------------------------------------------------------ */
 
-void ui_run(proto_conn_t *conn) {
+void ui_run(proto_conn_t *conn, long entry_at) {
+    g_entry_at = entry_at;
     initscr();
     set_escdelay(25);
     cbreak();

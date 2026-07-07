@@ -11,9 +11,11 @@ typedef struct {
 
 /*
  * Envia una nueva entrada cifrada.
+ * timestamp > 0: se envia como fecha de la entrada ("POST <epoch> <data>").
+ * timestamp <= 0: no se envia; el servidor usa su propio reloj.
  * Devuelve el id asignado por el servidor (>= 1), o -1 en error.
  */
-int net_post_entry(proto_conn_t *conn, const char *text);
+int net_post_entry(proto_conn_t *conn, const char *text, long timestamp);
 
 /*
  * Actualiza una entrada existente.

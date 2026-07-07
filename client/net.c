@@ -5,12 +5,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* POST: returns assigned id (>= 1) or -1 */
-int net_post_entry(proto_conn_t *conn, const char *text) {
+/* POST: returns assigned id (>= 1) or -1.
+ * timestamp > 0 sends "POST <epoch> <data>" so the server stores that
+ * instant; timestamp <= 0 sends plain "POST <data>" (server clock). */
+int net_post_entry(proto_conn_t *conn, const char *text, long timestamp) {
     char *b64 = proto_seal_new((const unsigned char *)text, strlen(text),
                                conn->keys.enc_pk);
     if (!b64) return -1;
-    int rc = proto_send_prefixed(conn->fd, "POST ", b64, strlen(b64));
+    char prefix[32] = "POST ";
+    if (timestamp > 0)
+        snprintf(prefix, sizeof(prefix), "POST %ld ", timestamp);
+    int rc = proto_send_prefixed(conn->fd, prefix, b64, strlen(b64));
     free(b64);
     if (rc != 0) return -1;
 

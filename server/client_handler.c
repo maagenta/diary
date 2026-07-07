@@ -70,7 +70,18 @@ void diary_handle(int fd, const char *user_hex, void *ctx) {
             proto_send_line(fd, "BYE"); free(line); break;
 
         } else if (strncmp(line, "POST ", 5) == 0) {
-            int id = storage_add_entry(user_hex, line + 5, time(NULL));
+            const char *payload = line + 5;
+            time_t ts = time(NULL);
+            char *sp = strchr(payload, ' ');
+            /* A space in the payload is the signal that the client chose
+             * its own timestamp: "POST <epoch> <data>". Entry data is
+             * base64, which never contains spaces, so a plain
+             * "POST <data>" can never match this case. */
+            if (sp) {
+                long client_ts = atol(payload);
+                if (client_ts > 0) { ts = (time_t)client_ts; payload = sp + 1; }
+            }
+            int id = storage_add_entry(user_hex, payload, ts);
             if (id < 0) {
                 proto_send_line(fd, "FAIL could not save entry");
             } else {
