@@ -202,3 +202,18 @@ diary/
 ├── Makefile
 └── README.md
 ```
+
+## Docker
+
+To compose the docker container use:
+
+```
+docker compose up -d
+```
+
+By default, the container listen on port **4242**, stars automatically **unless-stopped** and reads everything from a mounted `/data` volume:
+
+- `/data/auth.pub` authorized authentication public key (required)
+- `/data/diary.db` SQLite database (created automatically if absent)
+
+To change the *data* location, edit the line `10` of `docker-compose.yml`.
