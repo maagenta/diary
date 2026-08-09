@@ -1,6 +1,18 @@
 # Build output
 build/
 
+# Python (test suite)
+tests/venv/
+tests/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
 # Android build outputs
 android-client/app/build/
 android-client/build/

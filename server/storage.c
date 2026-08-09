@@ -16,8 +16,11 @@ int storage_init(const char *db_path) {
         return -1;
     }
 
-    /* WAL allows concurrent reads and writes without full locking */
+    /* WAL allows concurrent reads and writes without full locking, but
+     * still one writer at a time: wait instead of failing with BUSY when
+     * another forked client is mid-write */
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
+    sqlite3_busy_timeout(db, 5000);
     sqlite3_exec(db, "PRAGMA foreign_keys=ON;",  NULL, NULL, NULL);
 
     const char *schema =

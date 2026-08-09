@@ -1,0 +1,3 @@
+# Third-party packages for the test suite; `make test` installs them
+# into tests/venv automatically when this file changes.
+pyte    # terminal emulator: interprets ncurses output for TUI screen tests

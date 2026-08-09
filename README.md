@@ -72,6 +72,7 @@ brew install libsodium sqlite ncurses
 make           # build everything into build/
 make server    # build keygen + server
 make client    # build keygen + client
+make test      # run the test suite
 make clean     # remove binaries
 ```
 
@@ -79,6 +80,34 @@ Binaries are placed in `build/`:
 - `build/keygen`        — key pair generator
 - `build/diary-server`  — server
 - `build/diary-client`  — client TUI
+
+## Testing
+
+```bash
+make test
+```
+
+The suite is written in Python (3.10+). On first run, `make test`
+creates a virtualenv in `tests/venv`, installs `tests/requirements.txt`
+into it, then runs the suite; later runs reuse the venv and reinstall
+only when `requirements.txt` changes. The crypto side needs no
+packages — the suite binds the system libsodium via `ctypes`; the one
+third-party dependency is `pyte`, a terminal emulator used to assert on
+the TUI's rendered screens.
+
+Every test talks to a real `diary-server` over a real socket, in a
+throwaway temp directory — fresh keys, empty database, random port —
+and cleans up after itself. It never touches a real database or keys.
+Coverage includes the timestamp/`--entry-at` semantics, protocol
+robustness against malformed input, auth (forged signatures,
+non-allowlisted keys), content round-trips, persistence across server
+restarts, concurrent clients, and the ncurses TUI driven through a
+pseudo-terminal — both effect-based (keystrokes in, DB rows out) and
+screen-based (the rendered UI checked through a terminal emulator).
+Exit code `0` means all tests passed.
+
+See [tests/README.md](tests/README.md) for what is covered and how to add
+new tests.
 
 ## Usage
 
@@ -199,6 +228,14 @@ diary/
 │   ├── net.c/h             — diary commands over the protocol
 │   ├── ui.c/h              — ncurses interface
 │   └── Makefile
+├── tests/                  — Python test suite (stdlib-only)
+│   ├── run_tests.py        — builds binaries, runs the suite
+│   ├── harness.py          — scratch-server fixture (temp dir, keygen)
+│   ├── proto.py            — Python speaker of the diary protocol
+│   ├── sodium.py           — ctypes bindings to the system libsodium
+│   ├── test_*.py           — the tests (timestamps, robustness, content,
+│   │                          persistence, concurrency, CLI, TUI)
+│   └── requirements.txt    — third-party deps (pyte, for TUI screens)
 ├── Makefile
 └── README.md
 ```
