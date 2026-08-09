@@ -10,29 +10,29 @@ typedef struct {
 } diary_entry_t;
 
 /*
- * Envia una nueva entrada cifrada.
- * timestamp > 0: se envia como fecha de la entrada ("POST <epoch> <data>").
- * timestamp <= 0: no se envia; el servidor usa su propio reloj.
- * Devuelve el id asignado por el servidor (>= 1), o -1 en error.
+ * Sends a new encrypted entry.
+ * timestamp > 0: sent as the entry date ("POST <epoch> <data>").
+ * timestamp <= 0: not sent; the server uses its own clock.
+ * Returns the id assigned by the server (>= 1), or -1 on error.
  */
 int net_post_entry(proto_conn_t *conn, const char *text, long timestamp);
 
 /*
- * Actualiza una entrada existente.
- * Devuelve el mismo id en exito, -1 en error.
+ * Updates an existing entry.
+ * Returns the same id on success, -1 on error.
  */
 int net_update_entry(proto_conn_t *conn, int id, const char *text);
 
 /*
- * Elimina una entrada.
- * Devuelve 0 ok, -1 error.
+ * Deletes an entry.
+ * Returns 0 ok, -1 error.
  */
 int net_delete_entry(proto_conn_t *conn, int id);
 
 /*
- * Descarga y descifra todas las entradas.
- * *entries es un array de count diary_entry_t (malloc).
- * Caller libera cada entry->text y luego el array.
+ * Downloads and decrypts all entries.
+ * *entries is a malloc'd array of count diary_entry_t.
+ * Caller frees each entry->text and then the array.
  */
 int net_get_entries(proto_conn_t *conn,
                     diary_entry_t **entries, int *count);
