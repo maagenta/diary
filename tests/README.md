@@ -49,7 +49,7 @@ afterward. Real databases and keys are never involved.
 | `test_content.py` | round-trips: UTF-8/emoji, embedded newlines, empty entry, ~100 KB entry (exceeds `MAX_LINE`, exercises the unbounded line reader) |
 | `test_persistence.py` | entries and registration survive a server restart on the same DB |
 | `test_concurrent.py` | 4 parallel clients × 5 posts all stored (found the missing SQLite busy timeout); interleaved sessions |
-| `test_cli.py` | the real `diary-client` binary: `--entry-at` rejects bad input, `-v` works; the ncurses TUI driven through a pty types and saves a backdated entry, verified in the DB |
+| `test_cli.py` | the real `diary-client` binary: `--entry-at` rejects bad input, `-v` works; `--post` saves stdin headlessly (with/without `--entry-at`, multiline) — its path skips `ui.c`, so `--post` green + TUI red pinpoints a bug in `ui.c`; the ncurses TUI driven through a pty types and saves a backdated entry, verified in the DB |
 | `test_tui.py` | rendered-screen assertions via `pyte`: empty list screen and status bar; editor title shows the `--entry-at` date and the dirty `*` marker lifecycle; typed UTF-8 (accents + CJK) renders and round-trips; arrow-key cursor movement inserts mid-word; viewer header and body; delete confirmation flow, both confirmed and cancelled |
 
 Known server limitation (documented in `test_concurrent.py`): several

@@ -36,6 +36,47 @@ class FlagTests(DiaryTest):
         self.assertIn("diary-client", r.stdout)
 
 
+class PostTests(DiaryTest):
+    """--post: headless entry creation. Its path is main.c + net.c +
+    protocol lib with ui.c absent, so together with the TUI tests it
+    bisects client failures: --post ok + TUI failing => bug is in ui.c."""
+
+    def run_post(self, text, *extra_args):
+        return subprocess.run(
+            [CLIENT_BIN, "-p", str(self.server.port), "--post", *extra_args],
+            input=text, capture_output=True, text=True,
+            cwd=self.server.dir, timeout=15)
+
+    def test_post_with_entry_at(self):
+        r = self.run_post("posted headless", "--entry-at", ENTRY_AT)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        eid = int(r.stdout.strip())
+        rows = self.server.db_query(
+            "SELECT timestamp FROM entries WHERE id = ?", (eid,))
+        self.assertEqual(rows, [(ENTRY_AT_EPOCH,)])
+        c = self.server.client()
+        self.assertEqual(c.entry(eid)["text"], "posted headless")
+        c.quit()
+
+    def test_post_without_entry_at_uses_server_clock(self):
+        before = int(time.time())
+        r = self.run_post("clocked entry")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        eid = int(r.stdout.strip())
+        rows = self.server.db_query(
+            "SELECT timestamp FROM entries WHERE id = ?", (eid,))
+        self.assertGreaterEqual(rows[0][0], before)
+
+    def test_post_multiline_stdin(self):
+        text = "line one\nline two\n\nline four\n"
+        r = self.run_post(text, "--entry-at", ENTRY_AT)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        eid = int(r.stdout.strip())
+        c = self.server.client()
+        self.assertEqual(c.entry(eid)["text"], text)
+        c.quit()
+
+
 class TuiTests(DiaryTest):
     """Type a real entry into the ncurses editor over a pty and verify it
     lands in the database with the --entry-at timestamp."""
