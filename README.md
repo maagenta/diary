@@ -6,8 +6,8 @@ Personal diary application with end-to-end encryption, accessible over the netwo
 
 ## Architecture
 
-- **Server**: TCP socket in C. Stores entries in a SQLite database, encrypted with the user's public key. Never has access to private keys.
-- **Client**: TUI in ncurses. Reads the private key from a local file to decrypt entries.
+- **[Server](server/architecture.md)**: TCP socket in C. Stores entries in a SQLite database, encrypted with the user's public key. Never has access to private keys.
+- **[Client](client/architecture.md)**: TUI in ncurses. Reads the private key from a local file to decrypt entries.
 
 ## Encryption
 
@@ -30,8 +30,13 @@ S→C: OK  |  REGISTER
 C→S: REGISTER <enc_pubkey_b64>
 S→C: OK
 
-# New entry:
+# New entry (server stamps the date):
 C→S: POST <encrypted_entry_b64>
+S→C: OK <id>  |  FAIL
+
+# New entry with a client-chosen date (epoch; data is base64, so the
+# space after the epoch is unambiguous):
+C→S: POST <epoch> <encrypted_entry_b64>
 S→C: OK <id>  |  FAIL
 
 # Get entries:
@@ -190,6 +195,16 @@ build/diary-client -h 192.168.1.10 -p 8080 -a auth.key -e enc.key
 | `-p PORT` | Port | `4242` |
 | `-a AUTH_SK` | Path to auth private key | `auth.key` |
 | `-e ENC_SK` | Path to encryption private key | `enc.key` |
+| `--entry-at "YYYY-MM-DD HH:MM"` | Date stored for entries created this session (local time) | server clock |
+| `--post` | Read one entry from stdin, save it, print its id and exit — no TUI | — |
+
+Headless posting (scripts, cron, or checking whether a problem is in the
+TUI or below it):
+
+```bash
+echo "quick note" | build/diary-client --post
+echo "backdated"  | build/diary-client --post --entry-at "2026-07-06 14:30"
+```
 
 ### 4. Client key bindings
 
@@ -219,11 +234,13 @@ diary/
 │   ├── diary.h             — app constants (port, entry size limit)
 │   └── version.h           — release version
 ├── server/
+│   ├── architecture.md     — server design doc
 │   ├── main.c              — entry point, CLI options
 │   ├── client_handler.c    — diary command dispatch (post-auth)
 │   ├── storage.c/h         — SQLite persistence (WAL mode)
 │   └── Makefile
 ├── client/
+│   ├── architecture.md     — client design doc
 │   ├── main.c              — entry point, CLI options
 │   ├── net.c/h             — diary commands over the protocol
 │   ├── ui.c/h              — ncurses interface
@@ -239,6 +256,10 @@ diary/
 ├── Makefile
 └── README.md
 ```
+
+Design docs: [server/architecture.md](server/architecture.md) ·
+[client/architecture.md](client/architecture.md) ·
+[protocol/architecture.md](protocol/architecture.md)
 
 ## Docker
 
